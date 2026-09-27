@@ -3,547 +3,1871 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>空调内外机工作原理 · Three.js 剖视演示</title>
+<title>空调工作原理 · 3D 剖视演示 v1.1</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #070b16; font-family: "Microsoft YaHei","PingFang SC",sans-serif; }
-  #app { position: fixed; inset: 0; }
-  canvas { display: block; }
+  :root{
+    --bg:#060a14; --panel:rgba(13,19,34,.80); --panel2:rgba(20,28,48,.9);
+    --line:rgba(140,170,230,.14); --line2:rgba(140,170,230,.32);
+    --tx:#e7ecf8; --mu:#8e9bbb; --mu2:#65729a;
+    --cool:#3fb6ff; --heat:#ff8a3d; --ok:#5fe0a8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  #app{position:fixed;inset:0}
+  #app canvas{display:block;outline:none}
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .panel{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .ph{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600;color:#dfe6f7;letter-spacing:.5px;margin-bottom:10px}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;background:rgba(63,182,255,.16);color:#8fd4ff}
+  body.heat .pill.mode{background:rgba(255,138,61,.18);color:#ffb488}
 
-  #title { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); text-align:center; color:#e8eefc; z-index:10; pointer-events:none; }
-  #title h1 { font-size: 21px; font-weight:600; letter-spacing:1px; }
-  #title p { font-size: 12px; color:#8da0c8; margin-top:4px; }
+  /* header */
+  #hdr{position:fixed;top:16px;left:16px;z-index:11;display:flex;gap:12px;align-items:center;pointer-events:none;max-width:calc(100vw - 360px)}
+  #hdr .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:21px;
+    background:linear-gradient(135deg,#1d6fe0,#34c3ff);box-shadow:0 6px 20px rgba(52,160,255,.35);flex:none;transition:background .6s}
+  body.heat #hdr .logo{background:linear-gradient(135deg,#e2551d,#ffae44);box-shadow:0 6px 20px rgba(255,120,50,.35)}
+  #hdr h1{font-size:18px;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+  #hdr h1 .ver{font-size:11px;font-weight:700;vertical-align:3px;margin-left:6px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.1);color:#cfe0ff}
+  #hdr p{font-size:12px;color:var(--mu);margin-top:3px}
 
-  #steps { position: fixed; top: 76px; left: 16px; width: 270px; z-index:10; display:flex; flex-direction:column; gap:9px; }
-  .step { background: rgba(18,26,46,0.82); border:1px solid rgba(120,150,210,0.18); border-radius:11px; padding:11px 13px; color:#c8d4ee; cursor:pointer; transition:all .25s; backdrop-filter: blur(8px); }
-  .step:hover { border-color: rgba(120,150,210,0.5); }
-  .step.active { border-color: var(--c); box-shadow:0 0 0 1px var(--c),0 6px 20px rgba(0,0,0,.4); background: rgba(26,36,62,0.92); }
-  .step .head { display:flex; align-items:center; gap:8px; }
-  .step .dot { width:11px; height:11px; border-radius:50%; background:var(--c); box-shadow:0 0 8px var(--c); flex:none; }
-  .step .name { font-size:14px; font-weight:600; color:#eef3ff; }
-  .step .en { font-size:10px; color:#7f93bd; margin-left:auto; }
-  .step .desc { font-size:11.5px; line-height:1.6; color:#a8b6d8; margin-top:6px; }
-  .step .state { font-size:10.5px; margin-top:5px; color:var(--c); font-weight:600; }
+  /* left steps */
+  #left{top:78px;left:16px;width:300px;max-height:calc(100vh - 170px);overflow:auto;padding:14px}
+  #left::-webkit-scrollbar,#right::-webkit-scrollbar{width:6px}
+  #left::-webkit-scrollbar-thumb,#right::-webkit-scrollbar-thumb{background:rgba(140,170,230,.2);border-radius:3px}
+  .step{position:relative;border:1px solid var(--line);border-radius:11px;padding:10px 12px 10px 14px;margin-bottom:8px;cursor:pointer;
+    background:rgba(255,255,255,.02);transition:border-color .25s,background .25s,box-shadow .25s}
+  .step:hover{border-color:var(--line2)}
+  .step::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--c);opacity:.35;transition:opacity .25s}
+  .step.on{border-color:color-mix(in srgb,var(--c) 70%,transparent);background:rgba(255,255,255,.05);box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 40%,transparent),0 8px 24px rgba(0,0,0,.3)}
+  .step.on::before{opacity:1;box-shadow:0 0 10px var(--c)}
+  .step .hd{display:flex;align-items:baseline;gap:8px}
+  .step .no{font-size:11px;font-weight:700;color:var(--c)}
+  .step .nm{font-size:14.5px;font-weight:700}
+  .step .en{font-size:10.5px;color:var(--mu2);margin-left:auto}
+  .step .wh{font-size:11px;color:var(--mu);margin-top:3px}
+  .step .st{font-size:11.5px;font-weight:600;color:var(--c);margin-top:5px}
+  .step .ds{font-size:11.5px;line-height:1.65;color:#aab6d3;margin-top:6px;display:none}
+  .step.on .ds{display:block}
+  .core{margin-top:10px;padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,rgba(63,182,255,.08),rgba(255,138,61,.07));border:1px dashed var(--line2);font-size:11.5px;line-height:1.7;color:#b8c4e0}
+  .core b{color:#fff}
 
-  #legend { position: fixed; top: 76px; right: 16px; width: 196px; z-index:10; background:rgba(18,26,46,0.82); border:1px solid rgba(120,150,210,0.18); border-radius:11px; padding:13px; color:#c8d4ee; backdrop-filter:blur(8px); }
-  #legend h3 { font-size:12px; color:#eef3ff; margin:0 0 9px; }
-  #legend h3:not(:first-child){ margin-top:13px; border-top:1px solid rgba(120,150,210,0.15); padding-top:11px; }
-  .leg-row { display:flex; align-items:center; gap:8px; font-size:11px; margin:6px 0; }
-  .leg-row .bar { width:20px; height:9px; border-radius:3px; flex:none; }
+  /* right data */
+  #right{top:16px;right:16px;width:310px;max-height:calc(100vh - 110px);overflow:auto;padding:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .tile{border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:rgba(255,255,255,.025)}
+  .tile span{display:block;font-size:10.5px;color:var(--mu)}
+  .tile b{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .tile i{font-style:normal;font-size:10.5px;color:var(--mu);margin-left:3px}
+  .tile small{display:block;font-size:10.5px;color:#aeb9d6;font-variant-numeric:tabular-nums;margin-top:1px}
+  .tile.wide{grid-column:span 2;display:flex;align-items:center;justify-content:space-between}
+  .tile.wide b{font-size:15px}
+  .sec{margin-top:13px}
+  #phc{width:100%;height:200px;display:block;border-radius:10px;background:rgba(0,0,0,.18);border:1px solid var(--line)}
+  #tracerInfo{font-size:11px;color:#aeb9d6;margin-top:6px;min-height:16px;font-variant-numeric:tabular-nums}
+  #tracerInfo b{color:#fff}
+  .leg{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;font-size:11px;color:#b6c1dc}
+  .leg div{display:flex;align-items:center;gap:6px}
+  .leg i{width:16px;height:8px;border-radius:3px;flex:none}
+  .tbar{height:9px;border-radius:5px;margin-top:6px;background:linear-gradient(90deg,#1f5bff,#2f86ff 17%,#45c3ff 30%,#bfe6ff 43%,#f2efe6 52%,#ffc978 64%,#ff8a3d 80%,#ff3b2f)}
+  .tticks{display:flex;justify-content:space-between;font-size:10px;color:var(--mu2);margin-top:3px}
 
-  #gauges { position: fixed; top: 380px; right: 16px; width: 196px; z-index:10; background:rgba(18,26,46,0.82); border:1px solid rgba(120,150,210,0.18); border-radius:11px; padding:13px; color:#c8d4ee; backdrop-filter:blur(8px); }
-  #gauges h3 { font-size:12px; color:#eef3ff; margin:0 0 9px; display:flex; justify-content:space-between; align-items:center; }
-  #gauges #modeTag { font-size:11px; padding:2px 9px; border-radius:10px; background:rgba(90,200,150,.22); color:#7fe0b4; font-weight:600; }
-  .g-row { display:flex; justify-content:space-between; align-items:baseline; font-size:11.5px; margin:7px 0; color:#a8b6d8; }
-  .g-row b { font-size:14px; color:#eef3ff; font-weight:600; font-variant-numeric:tabular-nums; }
-  #controls { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index:10; display:flex; align-items:center; gap:14px; background:rgba(18,26,46,0.85); border:1px solid rgba(120,150,210,0.18); border-radius:30px; padding:9px 18px; backdrop-filter:blur(8px); color:#c8d4ee; flex-wrap:wrap; max-width:94vw; justify-content:center; }
-  #controls button { background:rgba(60,90,160,.4); border:1px solid rgba(120,150,210,.4); color:#eef3ff; border-radius:20px; padding:6px 14px; cursor:pointer; font-size:12.5px; }
-  #controls button:hover { background:rgba(80,120,200,.6); }
-  #controls label { font-size:11.5px; display:flex; align-items:center; gap:6px; }
-  #controls input[type=range]{ width:96px; }
-  .hint { position:fixed; bottom:16px; right:16px; z-index:10; color:#5e6f96; font-size:10.5px; }
+  /* bottom bar */
+  #bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:12;display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:16px;max-width:calc(100vw - 24px);overflow-x:auto;scrollbar-width:none}
+  #bar::-webkit-scrollbar{display:none}
+  .seg{display:flex;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:11px;padding:2px;flex:none}
+  .seg button,.btn{border:0;background:transparent;color:#c7d2ec;font:inherit;font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
+  .seg button:hover,.btn:hover{background:rgba(255,255,255,.07);color:#fff}
+  .seg button.on{background:rgba(63,182,255,.22);color:#fff;box-shadow:inset 0 0 0 1px rgba(63,182,255,.45)}
+  .seg button.on.heatb{background:rgba(255,138,61,.24);box-shadow:inset 0 0 0 1px rgba(255,138,61,.5)}
+  .btn{border:1px solid var(--line);background:rgba(255,255,255,.03);flex:none}
+  .btn.on{background:rgba(95,224,168,.16);color:#bff5dc;border-color:rgba(95,224,168,.45)}
+  .sep{width:1px;height:24px;background:var(--line);flex:none}
+  .rng{display:flex;align-items:center;gap:6px;font-size:12px;color:#aeb9d6;flex:none}
+  .rng input{width:80px;accent-color:#3fb6ff}
+  .chk{display:flex;gap:4px;flex:none}
+  .chk label{font-size:12px;color:#b8c3de;display:flex;align-items:center;gap:4px;padding:5px 7px;border-radius:8px;cursor:pointer;white-space:nowrap;user-select:none}
+  .chk label:hover{background:rgba(255,255,255,.05)}
+  .chk input{accent-color:#3fb6ff}
+  select.btn{appearance:none;padding-right:22px;background-image:linear-gradient(45deg,transparent 50%,#9fb0d4 50%),linear-gradient(135deg,#9fb0d4 50%,transparent 50%);
+    background-position:calc(100% - 12px) 52%,calc(100% - 8px) 52%;background-size:4px 4px;background-repeat:no-repeat}
+  select.btn option{background:#141c30;color:#e6ecfa}
+
+  /* labels */
+  .lbl{position:relative;width:0;height:0;--c:#9fb4e0;transition:opacity .3s}
+  .lbl .d{position:absolute;left:-3.5px;top:-3.5px;width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+  .lbl .l{position:absolute;left:0;bottom:0;width:1px;height:var(--h,28px);background:linear-gradient(to top,var(--c),rgba(255,255,255,0))}
+  .lbl .b{position:absolute;left:0;bottom:var(--h,28px);transform:translateX(-50%);white-space:nowrap;padding:4px 9px;border-radius:8px;
+    background:rgba(10,15,28,.82);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);font-size:12px;font-weight:700;color:#fff;line-height:1.25;text-align:center}
+  .lbl .b em{display:block;font-style:normal;font-size:10px;font-weight:500;color:var(--c)}
+  body.nolabels .lbl{opacity:0}
+  .qlbl .b{font-size:13px;padding:5px 11px}
+
+  #caption{position:fixed;left:50%;bottom:74px;transform:translateX(-50%);z-index:12;max-width:min(760px,calc(100vw - 32px));padding:11px 18px;border-radius:13px;
+    background:rgba(8,12,24,.86);border:1px solid var(--line2);font-size:14px;line-height:1.7;color:#eef2fc;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none}
+  #caption.show{opacity:1}
+  #caption .cp{display:block;font-size:11px;color:var(--mu);margin-top:3px}
+  #toast{position:fixed;left:50%;top:84px;transform:translate(-50%,-10px);z-index:13;padding:9px 16px;border-radius:11px;background:rgba(10,16,30,.92);
+    border:1px solid var(--line2);font-size:13px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #tip{position:fixed;z-index:14;pointer-events:none;max-width:280px;padding:9px 12px;border-radius:10px;background:rgba(8,12,24,.93);border:1px solid var(--line2);
+    font-size:12px;line-height:1.6;color:#c9d3ea;opacity:0;transition:opacity .15s}
+  #tip b{display:block;font-size:13.5px;color:#fff;margin-bottom:2px}
+  #tip b em{font-style:normal;font-size:10.5px;color:var(--mu);margin-left:6px;font-weight:500}
+  #tip .k{display:block;font-size:10.5px;color:var(--mu2);margin-top:4px}
+  #loading{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:radial-gradient(ellipse at center,#0d1730 0%,#05080f 70%);transition:opacity .8s}
+  #loading.hide{opacity:0;pointer-events:none}
+  #loading .in{text-align:center;color:var(--mu);font-size:13px}
+  #loading .sp{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;border:3px solid rgba(63,182,255,.18);border-top-color:#3fb6ff;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hint{position:fixed;right:16px;bottom:74px;z-index:9;font-size:10.5px;color:var(--mu2);text-align:right;line-height:1.6}
+
+  body.hideL #left{display:none} body.hideR #right{display:none}
+  @media (max-width:1100px){ #left{width:260px} #right{width:280px} .hint{display:none} }
+  @media (max-width:820px){
+    #hdr{max-width:calc(100vw - 32px)} #hdr h1{font-size:15px} #hdr p{display:none}
+    #left{top:auto;bottom:70px;left:8px;right:8px;width:auto;max-height:38vh}
+    #right{top:auto;bottom:70px;left:8px;right:8px;width:auto;max-height:46vh}
+    body:not(.showL) #left{display:none} body:not(.showR) #right{display:none}
+    #caption{bottom:auto;top:70px;font-size:13px}
+  }
+  @media (min-width:821px){ .mOnly{display:none} }
 </style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
 </head>
 <body>
 <div id="app"></div>
 
-<div id="title">
-  <h1>空调内外机工作原理 · 剖视演示</h1>
-  <p>左=室外机 · 右=室内机 · 半透明外壳可见内部 · 鼠标拖动旋转 / 滚轮缩放</p>
-</div>
+<header id="hdr">
+  <div class="logo" id="logo">❄</div>
+  <div>
+    <h1>空调制冷 / 制热循环 · 3D 剖视演示<span class="ver">v1.1</span></h1>
+    <p id="subtitle">制冷模式：把室内的热量"搬"到室外</p>
+  </div>
+</header>
 
-<div id="steps"></div>
+<aside id="left" class="panel">
+  <div class="ph"><span>制冷剂循环四步</span><span class="pill mode" id="stepMode">制冷模式</span></div>
+  <div id="steps"></div>
+  <div class="core" id="core"></div>
+</aside>
 
-<div id="legend">
-  <h3>制冷剂状态</h3>
-  <div class="leg-row"><span class="bar" style="background:#ff3b30"></span>高温高压气体</div>
-  <div class="leg-row"><span class="bar" style="background:#ff9f0a"></span>高压液体</div>
-  <div class="leg-row"><span class="bar" style="background:#5ac8fa"></span>低温低压液体</div>
-  <div class="leg-row"><span class="bar" style="background:#34c7c7"></span>低压气体</div>
-  <h3>空气</h3>
-  <div class="leg-row"><span class="bar" style="background:#9fb0c8"></span>室外常温空气吸入</div>
-  <div class="leg-row"><span class="bar" style="background:#ff5a3c"></span>室外吹出热风</div>
-  <div class="leg-row"><span class="bar" style="background:#ffb070"></span>室内常温空气吸入</div>
-  <div class="leg-row"><span class="bar" style="background:#4db8ff"></span>室内吹出冷风</div>
-</div>
+<aside id="right" class="panel">
+  <div class="ph"><span>实时运行参数</span><span class="pill mode" id="modeTag">制冷</span></div>
+  <div class="grid">
+    <div class="tile"><span>高压侧 · 冷凝温度</span><b id="rPH">2.79</b><i>MPa</i><small id="rTH">45 °C</small></div>
+    <div class="tile"><span>低压侧 · 蒸发温度</span><b id="rPL">1.01</b><i>MPa</i><small id="rTL">7 °C</small></div>
+    <div class="tile"><span>压缩机排气温度</span><b id="rTD">79</b><i>°C</i><small id="rHz">变频 62 Hz</small></div>
+    <div class="tile"><span id="rCapL">制冷量 · 输入功率</span><b id="rCap">3.50</b><i>kW</i><small id="rPow">耗电 0.95 kW</small></div>
+    <div class="tile"><span>室内 回风 → 送风</span><b id="rIn">27→14</b><i>°C</i></div>
+    <div class="tile"><span>室外 进风 → 排风</span><b id="rOut">35→44</b><i>°C</i></div>
+    <div class="tile wide"><span>循环 COP（理论）/ 整机能效</span><b id="rCOP">4.9 / 3.7</b></div>
+  </div>
+  <div class="sec">
+    <div class="ph"><span>压焓图 lg p–h（R32 示意）</span><span style="font-size:10.5px;color:var(--mu2);font-weight:500">圆点 = 示踪制冷剂</span></div>
+    <canvas id="phc"></canvas>
+    <div id="tracerInfo"></div>
+  </div>
+  <div class="sec">
+    <div class="ph"><span>制冷剂状态（管内发光颜色）</span></div>
+    <div class="leg">
+      <div><i style="background:#ff3b30"></i>高温高压蒸气</div>
+      <div><i style="background:#ffae1f"></i>高压液体</div>
+      <div><i style="background:#2f7dff"></i>低温气液两相</div>
+      <div><i style="background:#22d3c5"></i>低压蒸气</div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="ph" style="margin-bottom:0"><span>空气温度（粒子颜色）</span></div>
+    <div class="tbar"></div>
+    <div class="tticks"><span>0°</span><span>10°</span><span>20°</span><span>30°</span><span>40°</span><span>46°C</span></div>
+  </div>
+</aside>
 
-<div id="gauges">
-  <h3>实时读数 <span id="modeTag">制冷</span></h3>
-  <div class="g-row"><span>高压侧压力</span><b id="gHP">2.40 MPa</b></div>
-  <div class="g-row"><span>低压侧压力</span><b id="gLP">0.80 MPa</b></div>
-  <div class="g-row"><span>压缩机排气温度</span><b id="gDis">82 °C</b></div>
-  <div class="g-row hot"><span id="gInLbl">室内送风（冷）</span><b id="gIn">16 °C</b></div>
-  <div class="g-row"><span id="gOutLbl">室外排风（热）</span><b id="gOut">42 °C</b></div>
-</div>
+<div id="caption"></div>
+<div id="toast"></div>
+<div id="tip"></div>
 
-<div id="controls">
-  <button id="modeBtn" style="background:rgba(40,120,90,.5);border-color:rgba(90,200,150,.6)">❄ 制冷模式 · 点击切换</button>
-  <button id="playBtn">⏸ 暂停</button>
-  <label>流速 <input id="speed" type="range" min="0.2" max="3" step="0.1" value="1"></label>
-  <label><input id="tRef" type="checkbox" checked> 制冷剂</label>
-  <label><input id="tIn" type="checkbox" checked> 室内气流</label>
-  <label><input id="tOut" type="checkbox" checked> 室外气流</label>
-</div>
-<div class="hint">右键平移 · 滚轮缩放</div>
+<nav id="bar" class="panel">
+  <div class="seg" id="modeSeg"><button data-m="cool" class="on">❄ 制冷</button><button data-m="heat" class="heatb">☀ 制热</button></div>
+  <button class="btn" id="playBtn" title="空格键">⏸ 暂停</button>
+  <label class="rng">流速<input id="speed" type="range" min="0.2" max="3" step="0.1" value="1"></label>
+  <div class="sep"></div>
+  <div class="seg" id="shellSeg"><button data-s="0">外观</button><button data-s="1" class="on">剖视</button></div>
+  <button class="btn" id="tourBtn" title="T">🎬 自动导览</button>
+  <select class="btn" id="viewSel" title="视角">
+    <option value="overview">视角：总览</option>
+    <option value="outdoor">室外机</option>
+    <option value="compressor">压缩机（剖）</option>
+    <option value="fourway">四通阀（剖）</option>
+    <option value="eev">电子膨胀阀（剖）</option>
+    <option value="outCoil">室外换热器</option>
+    <option value="outFan">轴流风扇</option>
+    <option value="pipes">穿墙管路</option>
+    <option value="indoor">室内机</option>
+    <option value="inCoil">室内机剖面</option>
+  </select>
+  <div class="sep"></div>
+  <div class="chk">
+    <label><input type="checkbox" id="tRef" checked>制冷剂</label>
+    <label><input type="checkbox" id="tAir" checked>气流</label>
+    <label><input type="checkbox" id="tTracer" checked>示踪</label>
+    <label><input type="checkbox" id="tFollow">跟随</label>
+    <label><input type="checkbox" id="tLbl" checked>标注</label>
+  </div>
+  <button class="btn mOnly" id="mL">步骤</button>
+  <button class="btn mOnly" id="mR">参数</button>
+</nav>
+<div class="hint">拖动旋转 · 右键平移 · 滚轮缩放 · 悬停部件查看说明 · 点击部件聚焦<br>快捷键：空格 暂停 · M 模式 · C 剖视 · T 导览 · 1–4 步骤</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<div id="loading"><div class="in"><div class="sp"></div><div id="loadMsg">正在加载 3D 场景…</div></div></div>
 <script>
-// ============================================================
-//  空调内外机剖视演示
-// ============================================================
-const C = {
-  hot:  new THREE.Color(0xff3b30),
-  warm: new THREE.Color(0xff9f0a),
-  cold: new THREE.Color(0x5ac8fa),
-  cool: new THREE.Color(0x34c7c7),
-  airOutIn:  new THREE.Color(0x9fb0c8), // 室外吸入常温
-  airOutHot: new THREE.Color(0xff5a3c), // 室外吹出热（制冷）
-  airOutCold:new THREE.Color(0x6cc6ff), // 室外吹出冷（制热）
-  airInWarm: new THREE.Color(0xffb070), // 室内吸入常温（制冷）
-  airInCold: new THREE.Color(0x4db8ff), // 室内吹出冷（制冷）
-  airInHot:  new THREE.Color(0xff7a4c), // 室内吹出热（制热）
-  roomCool:  new THREE.Color(0xaec4dc), // 室内吸入偏凉（制热）
-  finHot:    new THREE.Color(0xc6502f), // 盘管放热色
-  finCold:   new THREE.Color(0x2f7fc6), // 盘管吸热色
+  // 模块加载失败（离线 / CDN 不可达）时给出提示
+  setTimeout(function(){ if(!window.__acReady){ var m=document.getElementById('loadMsg'); if(m) m.innerHTML='加载时间较长……<br>本演示需联网从 CDN 加载 Three.js，请检查网络后刷新。'; } }, 15000);
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { mergeGeometries, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* =====================================================================
+ *  空调制冷 / 制热循环 · 3D 剖视演示  v1.1
+ *  单位：1 = 10 cm。x<0 室外，x>0 室内，墙体位于 x∈[-1.2, 1.2]
+ * ===================================================================== */
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const PI = Math.PI;
+
+const S = {
+  mode: 'cool', playing: true, speed: 1, flowT: 0, time: 0,
+  shell: 0, shellTarget: 0, flow: 1, flowTarget: 1,
+  showAir: true, showRef: true, showTracer: true, follow: false,
 };
 
+// ---------------------------------------------------------------------
+//  渲染器 / 场景 / 相机 / 后处理
+// ---------------------------------------------------------------------
 const app = document.getElementById('app');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070b16);
-scene.fog = new THREE.Fog(0x070b16, 34, 70);
-
-const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 1000);
-camera.position.set(15, 8.5, 18);
-
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.92;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
 app.appendChild(renderer.domElement);
 
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.target.set(-1, 1, 0); controls.minDistance = 9; controls.maxDistance = 55;
+const scene = new THREE.Scene();
+scene.background = (() => {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 512;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#0f1b35'); gr.addColorStop(.55, '#0a1224'); gr.addColorStop(1, '#04070e');
+  g.fillStyle = gr; g.fillRect(0, 0, 16, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+scene.fog = new THREE.Fog(0x0a1122, 48, 115);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const key = new THREE.DirectionalLight(0xffffff, 0.95); key.position.set(10,16,12); scene.add(key);
-const fill = new THREE.DirectionalLight(0x6688ff, 0.4); fill.position.set(-12,5,-8); scene.add(fill);
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 400);
+camera.position.set(23, 11, 30);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.07;
+controls.target.set(-2.2, 1.5, 0.8);
+controls.minDistance = 2.5; controls.maxDistance = 80; controls.maxPolarAngle = PI * 0.62;
 
-// ---------- 环境：地面 + 墙 ----------
-const grid = new THREE.GridHelper(80, 40, 0x1d2742, 0x141d33);
-grid.position.y = -6; scene.add(grid);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 
-// 隔墙（半透明，x=0），左室外 右室内
-const wall = new THREE.Mesh(
-  new THREE.BoxGeometry(0.5, 14, 16),
-  new THREE.MeshStandardMaterial({ color:0x39435e, metalness:0.1, roughness:0.95, transparent:true, opacity:0.32 })
-);
-wall.position.set(0, 1, 0); scene.add(wall);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x141a26, 0.4));
+const sun = new THREE.DirectionalLight(0xfff1e2, 2.0);
+sun.position.set(12, 28, 20); sun.target.position.set(-2, 0, 1);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 90 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+const rim = new THREE.DirectionalLight(0x6f9cff, 1.1); rim.position.set(-22, 12, -18); scene.add(rim);
 
-// 室内地板（淡色）
-const floorIn = new THREE.Mesh(new THREE.PlaneGeometry(16,16),
-  new THREE.MeshStandardMaterial({ color:0x223150, roughness:0.9, transparent:true, opacity:0.5 }));
-floorIn.rotation.x = -Math.PI/2; floorIn.position.set(7,-5.98,0); scene.add(floorIn);
-
-// ============================================================
-//  通用建模辅助
-// ============================================================
-function box(w,h,d,color,opts={}){
-  return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-    new THREE.MeshStandardMaterial(Object.assign({color, metalness:0.4, roughness:0.55}, opts)));
+// 选择性泛光：只有发光物体（制冷剂流动、示踪粒子、热量流向）参与 bloom，白色外壳不会"过曝"
+const bloomComposer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType }));
+bloomComposer.renderToScreen = false;
+bloomComposer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.4, 0.0);
+bloomComposer.addPass(bloom);
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 }));
+composer.addPass(new RenderPass(scene, camera));
+const mixPass = new ShaderPass(new THREE.ShaderMaterial({
+  uniforms: { baseTexture: { value: null }, bloomTexture: { value: bloomComposer.renderTarget2.texture } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv;
+    void main(){ gl_FragColor = texture2D(baseTexture, vUv) + vec4(texture2D(bloomTexture, vUv).rgb, 0.0); }`,
+}), 'baseTexture');
+composer.addPass(mixPass);
+composer.addPass(new OutputPass());
+const darkMats = new Map(), darkSaved = [];
+function darkFor(m) {
+  const cp = m.clippingPlanes && m.clippingPlanes.length ? m.clippingPlanes[0] : null;
+  if (cp && !cp.userData) cp.userData = { id: Math.random().toString(36).slice(2) };
+  const key = (cp ? cp.userData.id : 'none') + '|' + m.side;
+  let d = darkMats.get(key);
+  if (!d) { d = new THREE.MeshBasicMaterial({ color: 0x000000, side: m.side, clippingPlanes: m.clippingPlanes || null }); darkMats.set(key, d); }
+  return d;
 }
-function makeLabel(text, sub, color){
-  const cv=document.createElement('canvas'); cv.width=512; cv.height=160;
-  const x=cv.getContext('2d');
-  x.fillStyle='rgba(12,18,34,0.88)'; rr(x,6,6,500,148,24); x.fill();
-  x.strokeStyle=color; x.lineWidth=4; rr(x,6,6,500,148,24); x.stroke();
-  x.fillStyle='#fff'; x.font='bold 54px "Microsoft YaHei"'; x.textAlign='center'; x.fillText(text,256,70);
-  x.fillStyle=color; x.font='28px Arial'; x.fillText(sub,256,118);
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
-  s.scale.set(4,1.25,1); return s;
+function renderBloom() {
+  const flowOn = RU.uFlow.value > 0.03;
+  scene.traverse(o => {
+    if (o.userData.bloom === true) return;
+    if (o.material === refMat && flowOn) { darkSaved.push([o, refMat]); o.material = refGlowMat; return; }
+    if (o.isMesh) {
+      const m = o.material;
+      if ((m.transparent && (m.opacity < 0.6 || !m.depthWrite)) || m.alphaTest > 0 || m.blending === THREE.AdditiveBlending) { if (o.visible) { darkSaved.push([o, 1]); o.visible = false; } return; }
+      darkSaved.push([o, m]); o.material = darkFor(m);
+    } else if ((o.isPoints || o.isLine || o.isSprite) && o.visible) { darkSaved.push([o, 1]); o.visible = false; }
+  });
+  const bg = scene.background, fog = scene.fog; scene.background = null; scene.fog = null;
+  bloomComposer.render();
+  scene.background = bg; scene.fog = fog;
+  for (const [o, m] of darkSaved) { if (m === 1) o.visible = true; else o.material = m; }
+  darkSaved.length = 0;
 }
-function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
 
-// 盘管翅片组
-function finBank(n, spacing, finW, finH, finD, color, axis='z'){
-  const g=new THREE.Group();
-  const m=new THREE.MeshStandardMaterial({color, metalness:0.45, roughness:0.5});
-  for(let i=0;i<n;i++){
-    const f=new THREE.Mesh(new THREE.BoxGeometry(finW,finH,finD), m);
-    if(axis==='z') f.position.z=(i-(n-1)/2)*spacing;
-    else f.position.x=(i-(n-1)/2)*spacing;
-    g.add(f);
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+labelRenderer.domElement.id = 'labels';
+document.body.appendChild(labelRenderer.domElement);
+
+// ---------------------------------------------------------------------
+//  材质
+// ---------------------------------------------------------------------
+const MAT = {
+  sheet: new THREE.MeshPhysicalMaterial({ color: 0xdfe3e7, roughness: 0.4, metalness: 0.05, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.7 }),
+  plastic: new THREE.MeshPhysicalMaterial({ color: 0xeef0f2, roughness: 0.34, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.25, side: THREE.DoubleSide, envMapIntensity: 0.75 }),
+  plasticGray: new THREE.MeshStandardMaterial({ color: 0xc3c9d2, roughness: 0.5, side: THREE.DoubleSide }),
+  plasticDark: new THREE.MeshStandardMaterial({ color: 0x353a42, roughness: 0.6 }),
+  fanBlade: new THREE.MeshStandardMaterial({ color: 0x2f343c, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide }),
+  crossFan: new THREE.MeshStandardMaterial({ color: 0xdce1e8, roughness: 0.42, side: THREE.DoubleSide }),
+  copper: new THREE.MeshStandardMaterial({ color: 0xc57b4c, roughness: 0.28, metalness: 1 }),
+  finOut: new THREE.MeshStandardMaterial({ color: 0xd0d7de, roughness: 0.3, metalness: 0.85 }),
+  finIn: new THREE.MeshStandardMaterial({ color: 0xd0d7de, roughness: 0.3, metalness: 0.85 }),
+  steel: new THREE.MeshStandardMaterial({ color: 0xa6aeb7, roughness: 0.38, metalness: 0.9 }),
+  steelDark: new THREE.MeshStandardMaterial({ color: 0x5a626c, roughness: 0.45, metalness: 0.8 }),
+  galv: new THREE.MeshStandardMaterial({ color: 0xb9c0c7, roughness: 0.5, metalness: 0.75 }),
+  compPaint: new THREE.MeshPhysicalMaterial({ color: 0x1b2026, roughness: 0.42, metalness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2, side: THREE.DoubleSide }),
+  rubber: new THREE.MeshStandardMaterial({ color: 0x121417, roughness: 0.95 }),
+  brass: new THREE.MeshStandardMaterial({ color: 0xcfa54d, roughness: 0.3, metalness: 1, side: THREE.DoubleSide }),
+  pcb: new THREE.MeshStandardMaterial({ color: 0x136238, roughness: 0.55 }),
+  winding: new THREE.MeshStandardMaterial({ color: 0xb8662c, roughness: 0.35, metalness: 0.85 }),
+  lamination: new THREE.MeshStandardMaterial({ color: 0x4d545d, roughness: 0.4, metalness: 0.85, side: THREE.DoubleSide }),
+  insul: new THREE.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.9, transparent: true, opacity: 0.16, depthWrite: false }),
+  cable: new THREE.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.7 }),
+  hose: new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.65 }),
+  black: new THREE.MeshStandardMaterial({ color: 0x14171b, roughness: 0.5 }),
+  water: new THREE.MeshPhysicalMaterial({ color: 0x9fdcff, roughness: 0.05, metalness: 0, emissive: 0x2a78c8, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 }),
+};
+
+// ---------------------------------------------------------------------
+//  几何辅助
+// ---------------------------------------------------------------------
+class Arc3 extends THREE.Curve {           // 平面圆弧：c + r(cos a·e1 + sin a·e2)
+  constructor(c, e1, e2, r, a0, a1) { super(); Object.assign(this, { c, e1, e2, r, a0, a1 }); }
+  getPoint(t, o = new THREE.Vector3()) {
+    const a = lerp(this.a0, this.a1, t);
+    return o.copy(this.c).addScaledVector(this.e1, Math.cos(a) * this.r).addScaledVector(this.e2, Math.sin(a) * this.r);
   }
+}
+class UBend extends THREE.Curve {          // 盘管 U 型弯头：A→B 半圆，向 e 方向凸出
+  constructor(A, B, e) {
+    super(); this.c = A.clone().add(B).multiplyScalar(.5); this.R = A.distanceTo(B) / 2;
+    this.u = A.clone().sub(this.c).normalize(); this.e = e.clone().normalize();
+  }
+  getPoint(t, o = new THREE.Vector3()) {
+    const a = PI * t;
+    return o.copy(this.c).addScaledVector(this.u, Math.cos(a) * this.R).addScaledVector(this.e, Math.sin(a) * this.R);
+  }
+}
+function mkPath(curves) { const p = new THREE.CurvePath(); p.curves.push(...curves); return p; }
+// 折线 + 圆角弯管（模拟弯铜管）
+function bentPath(pts, r = 0.2) {
+  const cs = []; let prev = pts[0].clone();
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    const d1 = b.clone().sub(a), d2 = c.clone().sub(b), l1 = d1.length(), l2 = d2.length();
+    d1.normalize(); d2.normalize();
+    const rr = Math.min(r, l1 * (i === 1 ? .9 : .5), l2 * (i === pts.length - 2 ? .9 : .5));
+    const p1 = b.clone().addScaledVector(d1, -rr), p2 = b.clone().addScaledVector(d2, rr);
+    if (prev.distanceTo(p1) > 1e-4) cs.push(new THREE.LineCurve3(prev.clone(), p1));
+    if (d1.dot(d2) < 0.9999) cs.push(new THREE.QuadraticBezierCurve3(p1, b.clone(), p2));
+    else cs.push(new THREE.LineCurve3(p1, p2));
+    prev = p2;
+  }
+  cs.push(new THREE.LineCurve3(prev, pts[pts.length - 1].clone()));
+  return mkPath(cs);
+}
+// 管道网格：自适应采样 + 平行传输标架，附带弧长属性（供制冷剂流动着色器使用）
+function tubeGeo(src, radius, radial = 10, o = {}) {
+  const list = src.curves ? src.curves : (Array.isArray(src) ? src : [src]);
+  const step = o.step || 0.06, P = [], T = [];
+  for (const c of list) {
+    const len = c.getLength();
+    const n = (c.isLineCurve3 && !o.rfn) ? 1 : Math.max(2, Math.ceil(len / step));
+    for (let i = (P.length ? 1 : 0); i <= n; i++) { const u = i / n; P.push(c.getPoint(u)); T.push(c.getTangent(u).clone().normalize()); }
+  }
+  const N = P.length, Nr = [], Br = [];
+  const n0 = Math.abs(T[0].y) > 0.9 ? V(1, 0, 0) : V(0, 1, 0);
+  n0.addScaledVector(T[0], -n0.dot(T[0])).normalize();
+  Nr.push(n0); Br.push(new THREE.Vector3().crossVectors(T[0], n0));
+  const q = new THREE.Quaternion();
+  for (let i = 1; i < N; i++) {
+    q.setFromUnitVectors(T[i - 1], T[i]);
+    const n = Nr[i - 1].clone().applyQuaternion(q); n.addScaledVector(T[i], -n.dot(T[i])).normalize();
+    Nr.push(n); Br.push(new THREE.Vector3().crossVectors(T[i], n));
+  }
+  const L = new Float32Array(N); for (let i = 1; i < N; i++) L[i] = L[i - 1] + P[i].distanceTo(P[i - 1]);
+  const total = L[N - 1] || 1, R1 = radial + 1, vc = N * R1;
+  const pos = new Float32Array(vc * 3), nor = new Float32Array(vc * 3), uv = new Float32Array(vc * 2);
+  const aL = new Float32Array(vc), aU = new Float32Array(vc), aV = new Float32Array(vc);
+  let k = 0;
+  for (let i = 0; i < N; i++) {
+    const r = o.rfn ? o.rfn(L[i]) : radius;
+    for (let j = 0; j <= radial; j++) {
+      const a = j / radial * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const nx = Nr[i].x * ca + Br[i].x * sa, ny = Nr[i].y * ca + Br[i].y * sa, nz = Nr[i].z * ca + Br[i].z * sa;
+      pos[k * 3] = P[i].x + nx * r; pos[k * 3 + 1] = P[i].y + ny * r; pos[k * 3 + 2] = P[i].z + nz * r;
+      nor[k * 3] = nx; nor[k * 3 + 1] = ny; nor[k * 3 + 2] = nz;
+      uv[k * 2] = L[i] / total; uv[k * 2 + 1] = j / radial;
+      aL[k] = L[i]; aU[k] = L[i] / total; aV[k] = j / radial; k++;
+    }
+  }
+  const idx = [];
+  for (let i = 0; i < N - 1; i++) for (let j = 0; j < radial; j++) {
+    const a = i * R1 + j, b = a + R1; idx.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setIndex(idx);
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('aL', new THREE.BufferAttribute(aL, 1));
+  g.setAttribute('aU', new THREE.BufferAttribute(aU, 1));
+  g.setAttribute('aV', new THREE.BufferAttribute(aV, 1));
+  if (o.seg !== undefined) g.setAttribute('aSeg', new THREE.BufferAttribute(new Float32Array(vc).fill(o.seg), 1));
+  g.userData.length = total;
   return g;
 }
-
-// ============================================================
-//  室外机（左，x<0）
-//  外壳半透明，内部：轴流风扇(前 +z 面) + 冷凝器盘管 + 压缩机
-// ============================================================
-let condFinMat=null, evapFinMat=null; // 盘管材质引用（模式切换换色）
-const OUT = new THREE.Group(); scene.add(OUT);
-const ouCenter = new THREE.Vector3(-6, -3.6, 0);
-{
-  // 外壳
-  const shell = box(3.2, 3.8, 5.2, 0x8893a6, { transparent:true, opacity:0.22, metalness:0.6, roughness:0.4 });
-  shell.position.copy(ouCenter); OUT.add(shell);
-  // 外壳棱框
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(shell.geometry),
-    new THREE.LineBasicMaterial({color:0xaeb8cc})); edges.position.copy(ouCenter); OUT.add(edges);
-
-  // 前面板 风扇格栅（同心圆，+z 面）
-  const grille = new THREE.Mesh(new THREE.TorusGeometry(1.45,0.06,8,40),
-    new THREE.MeshStandardMaterial({color:0x5a6478, metalness:0.7, roughness:0.4}));
-  grille.position.set(ouCenter.x, ouCenter.y+0.1, ouCenter.z+2.62); OUT.add(grille);
-  for(let r=0.5;r<1.4;r+=0.45){
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(r,0.025,6,32),
-      new THREE.MeshStandardMaterial({color:0x6b7588}));
-    ring.position.copy(grille.position); OUT.add(ring);
-  }
-
-  // 轴流风扇（叶片绕 z 轴）
-  const fanG = new THREE.Group(); fanG.position.set(ouCenter.x, ouCenter.y+0.1, ouCenter.z+2.45); OUT.add(fanG);
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.3,16),
-    new THREE.MeshStandardMaterial({color:0x33405e})); hub.rotation.x=Math.PI/2; fanG.add(hub);
-  const bladeMat=new THREE.MeshStandardMaterial({color:0x46557a, metalness:0.4, roughness:0.5, side:THREE.DoubleSide});
-  for(let i=0;i<5;i++){
-    const b=new THREE.Mesh(new THREE.PlaneGeometry(1.25,0.7), bladeMat);
-    b.position.set(Math.cos(i/5*Math.PI*2)*0.85, Math.sin(i/5*Math.PI*2)*0.85, 0);
-    b.rotation.z = i/5*Math.PI*2; b.rotation.y = 0.5; // 桨距
-    fanG.add(b);
-  }
-  OUT.userData.fan = fanG;
-
-  // 冷凝器盘管翅片（后/侧，-z 与两侧），暖色暗示放热
-  const cond = finBank(14, 0.32, 2.6, 3.0, 0.05, 0xc6502f, 'z');
-  cond.position.set(ouCenter.x-0.2, ouCenter.y+0.1, ouCenter.z-1.0); OUT.add(cond);
-  condFinMat = cond.children[0].material;
-
-  // 压缩机（内部底部圆柱）
-  const comp = new THREE.Group(); comp.position.set(ouCenter.x+0.3, ouCenter.y-1.0, ouCenter.z-1.4);
-  const cb=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,1.4,24),
-    new THREE.MeshStandardMaterial({color:0x3f4a66, metalness:0.75, roughness:0.3})); comp.add(cb);
-  OUT.add(comp); OUT.userData.comp = cb;
+function shapeRR(x0, y0, x1, y1, r, Ctor = THREE.Shape) {
+  const s = new Ctor();
+  s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.quadraticCurveTo(x1, y0, x1, y0 + r);
+  s.lineTo(x1, y1 - r); s.quadraticCurveTo(x1, y1, x1 - r, y1); s.lineTo(x0 + r, y1);
+  s.quadraticCurveTo(x0, y1, x0, y1 - r); s.lineTo(x0, y0 + r); s.quadraticCurveTo(x0, y0, x0 + r, y0);
+  return s;
 }
-const tagOut = makeLabel('室外机','Outdoor Unit','#9aa8c8'); tagOut.position.set(-6,-6.6,0); tagOut.scale.set(3.4,1.05,1); scene.add(tagOut);
-// 部件小标签
-const tagCond = makeLabel('冷凝器','Condenser','#ff9f0a'); tagCond.position.set(-8.4,-1.4,-1); tagCond.scale.set(3,0.95,1); scene.add(tagCond);
-const tagEvapOut = makeLabel('蒸发器','Evaporator','#5ac8fa'); tagEvapOut.position.set(-8.4,-1.4,-1); tagEvapOut.scale.set(3,0.95,1); tagEvapOut.visible=false; scene.add(tagEvapOut);
-const tagComp = makeLabel('压缩机','Compressor','#ff3b30'); tagComp.position.set(-3.6,-5.2,-1.4); tagComp.scale.set(3,0.95,1); scene.add(tagComp);
-
-// ============================================================
-//  室内机（右，壁挂式，x>0 高处）
-//  外壳半透明，内部：贯流风扇 + 蒸发器盘管 + 摆动导风板
-// ============================================================
-const IN = new THREE.Group(); scene.add(IN);
-const iuCenter = new THREE.Vector3(1.4, 5.0, 0);
-{
-  const shell = box(1.5, 2.0, 7.0, 0xeef2f8, { transparent:true, opacity:0.2, metalness:0.2, roughness:0.6 });
-  shell.position.copy(iuCenter); IN.add(shell);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(shell.geometry),
-    new THREE.LineBasicMaterial({color:0xc8d2e2})); edges.position.copy(iuCenter); IN.add(edges);
-
-  // 顶部进风格栅（slats，沿 z）
-  const intake = finBank(16, 0.4, 1.0, 0.04, 0.55, 0xcdd6e6, 'z');
-  intake.position.set(iuCenter.x, iuCenter.y+1.02, iuCenter.z); IN.add(intake);
-
-  // 贯流风扇（长圆柱，轴沿 z；外层带细叶）
-  const cfG = new THREE.Group(); cfG.position.set(iuCenter.x-0.1, iuCenter.y-0.1, 0);
-  cfG.rotation.x = Math.PI/2; // 轴对齐 z
-  IN.add(cfG);
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,6.4,20,1,true),
-    new THREE.MeshStandardMaterial({color:0x6f7d99, metalness:0.5, roughness:0.5, side:THREE.DoubleSide}));
-  cfG.add(drum);
-  const cfBladeMat=new THREE.MeshStandardMaterial({color:0x8a98b6});
-  for(let i=0;i<16;i++){
-    const b=new THREE.Mesh(new THREE.BoxGeometry(0.05,6.3,0.18), cfBladeMat);
-    const a=i/16*Math.PI*2; b.position.set(Math.cos(a)*0.55, 0, Math.sin(a)*0.55);
-    b.rotation.y=a; cfG.add(b);
-  }
-  IN.userData.fan = cfG;
-
-  // 蒸发器盘管翅片（进风侧，冷色），位于风扇上后方
-  const evap = finBank(16, 0.4, 0.05, 1.2, 0.9, 0x2f7fc6, 'z');
-  evap.position.set(iuCenter.x-0.1, iuCenter.y+0.45, iuCenter.z);
-  evap.rotation.z = 0.5; IN.add(evap);
-  evapFinMat = evap.children[0].material;
-
-  // 出风口导风板（底部前缘，可摆动）
-  const louver = box(0.7, 0.12, 6.4, 0xdfe6f0, { metalness:0.2, roughness:0.6 });
-  louver.position.set(iuCenter.x+0.55, iuCenter.y-1.0, 0); IN.add(louver);
-  IN.userData.louver = louver;
+const holeRR = (x0, y0, x1, y1, r) => shapeRR(x0, y0, x1, y1, r, THREE.Path);
+function holeCircle(cx, cy, r) { const p = new THREE.Path(); p.absarc(cx, cy, r, 0, PI * 2, true); return p; }
+function extrude(shape, depth, bevel = 0, curveSegments = 12) {
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel * 0.9, bevelSegments: 2, curveSegments });
 }
-const tagIn = makeLabel('室内机','Indoor Unit','#9aa8c8'); tagIn.position.set(1.4,7.2,0); tagIn.scale.set(3.4,1.05,1); scene.add(tagIn);
-const tagEvap = makeLabel('蒸发器','Evaporator','#5ac8fa'); tagEvap.position.set(4.2,5.6,0); tagEvap.scale.set(3,0.95,1); scene.add(tagEvap);
-const tagCondIn = makeLabel('冷凝器','Condenser','#ff9f0a'); tagCondIn.position.set(4.2,5.6,0); tagCondIn.scale.set(3,0.95,1); tagCondIn.visible=false; scene.add(tagCondIn);
-const tagValve= makeLabel('膨胀阀','Expansion','#5ac8fa'); tagValve.position.set(-2.4,-5.0,-2.2); tagValve.scale.set(2.8,0.9,1); scene.add(tagValve);
-
-// ============================================================
-//  制冷剂闭环（3D 走线，穿墙连接内外机）
-//  压缩机→冷凝器→膨胀阀→(液管上行穿墙)→蒸发器→(气管下行穿墙)→压缩机
-// ============================================================
-function mix(a,b,t){ return a.clone().lerp(b,t); }
-const WP = [
-  // 室外机内：压缩机出口（高温高压气）
-  {p:[-6.0,-4.8, 1.6], c:C.hot},
-  {p:[-6.0,-3.2, 1.9], c:C.hot},
-  // 进入冷凝器盘管，蛇形横跨 z，冷凝放热 → 高压液
-  {p:[-6.9,-2.4, 1.5], c:C.hot},
-  {p:[-7.3,-2.9, 0.6], c:mix(C.hot,C.warm,0.5)},
-  {p:[-7.3,-3.6,-0.3], c:C.warm},
-  {p:[-7.3,-2.9,-1.2], c:C.warm},
-  {p:[-6.9,-3.6,-2.0], c:C.warm},
-  // 膨胀阀（骤降）
-  {p:[-5.4,-4.7,-2.0], c:C.warm},
-  {p:[-4.9,-5.0,-1.8], c:C.cold},
-  // 液管：出室外机 → 近墙底穿墙 → 上行到室内机
-  {p:[-4.4,-2.2,-2.2], c:C.cold},
-  {p:[-1.0,-1.2,-2.5], c:C.cold},
-  {p:[ 1.3,-0.6,-2.7], c:C.cold},
-  {p:[ 1.5, 3.6,-2.4], c:C.cold},
-  // 进入蒸发器盘管，蛇形横跨 z，吸热 → 低压气
-  {p:[ 1.5, 4.4,-2.0], c:C.cold},
-  {p:[ 1.6, 5.3,-1.1], c:C.cold},
-  {p:[ 1.6, 4.6,-0.1], c:mix(C.cold,C.cool,0.5)},
-  {p:[ 1.6, 5.3, 1.0], c:C.cool},
-  {p:[ 1.5, 4.6, 1.9], c:C.cool},
-  {p:[ 1.4, 3.8, 2.4], c:C.cool},
-  // 气管：下行穿墙 → 回室外机压缩机
-  {p:[ 1.3,-0.6, 2.7], c:C.cool},
-  {p:[-1.0,-1.2, 2.5], c:C.cool},
-  {p:[-4.4,-2.6, 2.2], c:C.cool},
-  {p:[-6.0,-3.9, 1.9], c:C.cool},
-];
-const pathPts = WP.map(w=>new THREE.Vector3(...w.p)); pathPts.push(pathPts[0].clone());
-const pathCol = WP.map(w=>w.c);                        pathCol.push(pathCol[0].clone());
-// 制热模式：四通阀换向，制冷剂反向流动，室内机变冷凝器(放热)、室外机变蒸发器(吸热)
-// 反向流动：压缩机→室内盘管(冷凝放热)→膨胀阀→室外盘管(蒸发吸热)→压缩机
-const WPH = [
-  C.cool, C.cool, C.cool,                                              // 0-2  回气(cool)
-  C.cool, mix(C.cold,C.cool,0.7), mix(C.cold,C.cool,0.5), mix(C.cold,C.cool,0.3), // 3-6 室外盘管(吸热)
-  C.cold,                                                              // 7    室外盘管入口
-  C.cold,                                                              // 8    膨胀阀后(低温低压)
-  C.warm, C.warm, C.warm, C.warm,                                      // 9-12 液管(高压液)
-  C.warm, mix(C.warm,C.hot,0.3), mix(C.warm,C.hot,0.5), mix(C.warm,C.hot,0.7), // 13-16 室内盘管(放热)
-  C.hot, C.hot,                                                        // 17-18 室内盘管入口(高温气)
-  C.hot, C.hot, C.hot, C.hot,                                          // 19-22 气管(排气)
-];
-const pathColHeat = WPH.slice(); pathColHeat.push(WPH[0].clone());
-let curCol = pathCol;
-const segLen=[], cumLen=[0];
-for(let i=0;i<pathPts.length-1;i++){ const l=pathPts[i].distanceTo(pathPts[i+1]); segLen.push(l); cumLen.push(cumLen[i]+l); }
-const totalLen=cumLen[cumLen.length-1];
-function pointAt(t){ const d=(((t%1)+1)%1)*totalLen; let i=0; while(i<segLen.length-1 && d>cumLen[i+1]) i++; const u=(d-cumLen[i])/segLen[i]; return pathPts[i].clone().lerp(pathPts[i+1],u); }
-function colorAt(t){ const d=(((t%1)+1)%1)*totalLen; let i=0; while(i<segLen.length-1 && d>cumLen[i+1]) i++; const u=(d-cumLen[i])/segLen[i]; return curCol[i].clone().lerp(curCol[i+1],u); }
-
-// 管路实体（平滑管）
-{
-  const curve=new THREE.CatmullRomCurve3(pathPts.slice(0,-1), true, 'catmullrom', 0.1);
-  const tube=new THREE.Mesh(new THREE.TubeGeometry(curve, 500, 0.16, 12, true),
-    new THREE.MeshStandardMaterial({color:0x394a6b, metalness:0.7, roughness:0.35}));
-  scene.add(tube);
-  // 膨胀阀阀体
-  const vp=pointAt(cumLen[8]/totalLen);
-  const valve=new THREE.Mesh(new THREE.SphereGeometry(0.42,18,18),
-    new THREE.MeshStandardMaterial({color:0x7a84a6, metalness:0.8, roughness:0.25}));
-  valve.position.copy(vp); scene.add(valve);
+function thickShape(pts, t) {        // 把一条折线加厚成闭合截面
+  const inner = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    const d = b.clone().sub(a).normalize();
+    inner.push(pts[i].clone().add(new THREE.Vector2(-d.y, d.x).multiplyScalar(t)));
+  }
+  return new THREE.Shape([...pts, ...inner.reverse()]);
+}
+// 截面 (Z,Y) 沿 X 拉伸（用于室内机外壳、蜗壳、导风板等）
+function profileGeo(zy, width, { thick = 0, closed = false, bevel = 0, smooth = 0 } = {}) {
+  let pts = zy.map(([z, y]) => new THREE.Vector2(-z, y));
+  if (smooth) {
+    const c = new THREE.CatmullRomCurve3(pts.map(p => V(p.x, p.y, 0)), closed, 'centripetal');
+    pts = c.getSpacedPoints(smooth).map(p => new THREE.Vector2(p.x, p.y));
+    if (closed) pts.pop();
+  }
+  const shape = thick ? thickShape(pts, thick) : new THREE.Shape(pts);
+  let g = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel * 0.85, bevelSegments: 3, curveSegments: 1, steps: 1 });
+  g.rotateY(PI / 2); g.translate(-width / 2, 0, 0);
+  g = toCreasedNormals(g, PI / 5);
+  return g;
+}
+function lathe(profile, seg = 48) { return new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), seg); }
+function mesh(geo, mat, parent, x = 0, y = 0, z = 0, shadow = true) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+  if (parent) parent.add(m); return m;
+}
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const cyl = (r1, r2, h, s = 24, open = false) => new THREE.CylinderGeometry(r1, r2, h, s, 1, open);
+function rod(a, b, r, seg = 6) {        // 两点之间的圆杆几何
+  const d = b.clone().sub(a), g = cyl(r, r, d.length(), seg);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), d.clone().normalize()));
+  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); return g;
+}
+function canvasTex(w, h, draw, srgb = true) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8; return t;
 }
 
-// ---------- 制冷剂粒子 ----------
-const RN=240;
-const refGeo=new THREE.BufferGeometry();
-const refPos=new Float32Array(RN*3), refCol=new Float32Array(RN*3), refOff=[];
-for(let i=0;i<RN;i++) refOff.push(i/RN);
-refGeo.setAttribute('position',new THREE.BufferAttribute(refPos,3));
-refGeo.setAttribute('color',new THREE.BufferAttribute(refCol,3));
-const refPts=new THREE.Points(refGeo,new THREE.PointsMaterial({size:0.34,vertexColors:true,transparent:true,opacity:0.95}));
-scene.add(refPts);
-
-// ============================================================
-//  空气粒子系统（吸入 → 换热 → 吹出 → 循环）
-// ============================================================
-function rand(a,b){ return a+Math.random()*(b-a); }
-function createAir(cfg){
-  const N=cfg.count;
-  const geo=new THREE.BufferGeometry();
-  const pos=new Float32Array(N*3), col=new Float32Array(N*3);
-  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
-  const pts=new THREE.Points(geo,new THREE.PointsMaterial({size:cfg.size||0.3,vertexColors:true,transparent:true,opacity:0.8}));
-  scene.add(pts);
-  const P=[];
-  for(let i=0;i<N;i++){
-    const p={phase:0,t:0,dur:rand(cfg.inDur[0],cfg.inDur[1]),a:cfg.spawn(),b:cfg.intake()};
-    p.t=Math.random()*p.dur; P.push(p);
-  }
-  function step(p){
-    if(p.phase===0){ p.phase=1; p.a=p.b.clone(); p.b=cfg.outStart(); p.dur=cfg.midDur; }
-    else if(p.phase===1){ p.phase=2; p.a=p.b.clone(); p.b=cfg.outEnd(p.a); p.dur=rand(cfg.outDur[0],cfg.outDur[1]); }
-    else { p.phase=0; p.a=cfg.spawn(); p.b=cfg.intake(); p.dur=rand(cfg.inDur[0],cfg.inDur[1]); }
-    p.t=0;
-  }
-  function update(dt){
-    for(let i=0;i<N;i++){
-      const p=P[i]; p.t+=dt;
-      while(p.t>=p.dur){ p.t-=p.dur; step(p); }
-      const u=p.t/p.dur;
-      const x=p.a.x+(p.b.x-p.a.x)*u, y=p.a.y+(p.b.y-p.a.y)*u, z=p.a.z+(p.b.z-p.a.z)*u;
-      pos[i*3]=x; pos[i*3+1]=y; pos[i*3+2]=z;
-      let c;
-      if(p.phase===0) c=self.colIn;
-      else if(p.phase===1) c=self.colIn.clone().lerp(self.colOut,u);
-      else c=self.colOut;
-      col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
-    }
-    geo.attributes.position.needsUpdate=true; geo.attributes.color.needsUpdate=true;
-  }
-  const self={pts, update, colIn:cfg.colIn, colOut:cfg.colOut};
-  return self;
-}
-
-// 室内：房间常温空气 → 顶部吸入 → 经蒸发器变冷 → 底部导风板吹出冷风
-const airIn = createAir({
-  count:170, size:0.26,
-  inDur:[1.6,3.2], midDur:0.7, outDur:[1.8,3.0],
-  colIn:C.airInWarm, colOut:C.airInCold,
-  spawn:()=>new THREE.Vector3(rand(3,12), rand(-5,3.5), rand(-3.4,3.4)),
-  intake:()=>new THREE.Vector3(iuCenter.x+rand(-0.3,0.3), iuCenter.y+1.1, rand(-3,3)),
-  outStart:()=>new THREE.Vector3(iuCenter.x+0.6, iuCenter.y-1.1, rand(-3,3)),
-  outEnd:(a)=>new THREE.Vector3(a.x+rand(2,5), a.y-rand(3.5,6.5), a.z+rand(-1.5,1.5)),
-});
-
-// 室外：常温空气从侧/后吸入 → 经冷凝器变热 → 前部风扇吹出热风
-const airOut = createAir({
-  count:170, size:0.28,
-  inDur:[1.4,2.6], midDur:0.6, outDur:[1.6,2.8],
-  colIn:C.airOutIn, colOut:C.airOutHot,
-  spawn:()=>new THREE.Vector3(ouCenter.x+rand(-1.8,1.5), ouCenter.y+rand(-1.6,1.8), rand(-3.5,-2.2)),
-  intake:()=>new THREE.Vector3(ouCenter.x+rand(-0.6,0.6), ouCenter.y+rand(-0.4,0.6), ouCenter.z-0.4),
-  outStart:()=>new THREE.Vector3(ouCenter.x+rand(-1,1), ouCenter.y+0.1+rand(-1,1), ouCenter.z+2.7),
-  outEnd:(a)=>new THREE.Vector3(a.x+rand(-1.5,1.5), a.y+rand(0.5,2.5), a.z+rand(4,8)),
-});
-
-// ============================================================
-//  左侧步骤
-// ============================================================
-const STEPS=[
-  {name:'压缩机',en:'Compressor',color:'#ff3b30',state:'低压气 → 高温高压气',
-   desc:'位于室外机内。电机驱动压缩制冷剂气体，压力温度骤升，是循环唯一耗电做功的环节，相当于"心脏泵"。'},
-  {name:'冷凝器',en:'Condenser',color:'#ff9f0a',state:'高温气 → 高压液（放热）',
-   desc:'室外机盘管。轴流风扇把常温空气抽过盘管，高温制冷剂把热量传给空气，自身冷凝成液体——这就是室外机吹出热风的原因。'},
-  {name:'膨胀阀',en:'Expansion Valve',color:'#5ac8fa',state:'高压液 → 低温低压液（降温）',
-   desc:'制冷剂经极细孔口骤然减压，部分汽化吸热，温度急剧下降，变成又冷又低压的液体，随液管送往室内机。'},
-  {name:'蒸发器',en:'Evaporator',color:'#34c7c7',state:'低温液 → 低压气（吸热）',
-   desc:'室内机盘管。贯流风扇把室内空气抽过冷盘管，热量被制冷剂吸走并使其蒸发，变冷的空气经导风板吹回房间——这就是制冷。气体再经气管回压缩机。'},
-];
-const stepsEl=document.getElementById('steps'); const nodes=[];
-STEPS.forEach((s,i)=>{
-  const d=document.createElement('div'); d.className='step'; d.style.setProperty('--c',s.color);
-  d.innerHTML=`<div class="head"><span class="dot"></span><span class="name">${i+1}. ${s.name}</span><span class="en">${s.en}</span></div><div class="state">${s.state}</div><div class="desc">${s.desc}</div>`;
-  d.onclick=()=>setActive(i,true); stepsEl.appendChild(d); nodes.push(d);
-});
-let activeStep=-1, manualUntil=0;
-function setActive(i,manual){ activeStep=i; nodes.forEach((n,j)=>n.classList.toggle('active',j===i)); if(manual) manualUntil=performance.now()+6000; }
-const stepT=[0, cumLen[4]/totalLen, cumLen[8]/totalLen, cumLen[15]/totalLen];
-
-// ============================================================
-//  动画 & 控制
-// ============================================================
-let playing=true, speed=1, flow=0, mode='cool', dir=1;
-
-// 读数目标值（制冷/制热各一套），当前值平滑趋近目标
-const TARGETS = {
-  cool: { HP:2.40, LP:0.80, dis:82, inT:16, outT:42, inLbl:'室内送风（冷）', outLbl:'室外排风（热）' },
-  heat: { HP:2.75, LP:0.45, dis:78, inT:38, outT:2,  inLbl:'室内送风（热）', outLbl:'室外排风（冷）' },
+// ---------------------------------------------------------------------
+//  部件登记（悬停说明 / 高亮 / 聚焦）
+// ---------------------------------------------------------------------
+const PARTS = {}, pickables = [];
+const INFO = {
+  comp: ['压缩机', 'Rotary Compressor', '变频滚动转子式压缩机。电机带动偏心轴，使滚动活塞在气缸内公转，把低压蒸气压缩成高温高压蒸气——循环的"心脏"，也是主要耗电部件。'],
+  fourway: ['四通换向阀', '4-Way Reversing Valve', '由电磁先导阀驱动内部滑块左右移动，改变排气去向：制冷时排气进室外机，制热时进室内机。空调能"冷暖两用"全靠它。'],
+  eev: ['电子膨胀阀', 'Electronic Expansion Valve', '步进电机驱动针阀调节开度。高压液体流过微小节流口后压力骤降、部分闪发汽化，温度随之大幅降低。'],
+  acc: ['气液分离器', 'Accumulator', '位于压缩机吸气口前，截留未蒸发完的液态制冷剂和油，防止液体进入压缩机造成"液击"。'],
+  ocoil: ['室外换热器', 'Outdoor Coil', 'L 形双排翅片管换热器。铜管内走制冷剂，外面密集的亲水铝翅片扩大与空气的换热面积。制冷时为冷凝器（放热），制热时为蒸发器（吸热）。'],
+  ofan: ['轴流风扇', 'Axial Fan', '三叶大弦长后掠叶片，由直流无刷电机驱动，从背面和侧面吸入空气穿过换热器，再从正面格栅吹出。'],
+  valves: ['截止阀（气 / 液）', 'Service Valves', '室外机与连接管的接口：粗的是气管阀，细的是液管阀，安装时通过喇叭口螺母连接，可关断用于收氟、检修。'],
+  ebox: ['电控板', 'Inverter Control Board', '变频驱动与控制电路：IPM 功率模块、散热器、电解电容、继电器等，负责调节压缩机转速和各阀门风扇。'],
+  outCase: ['室外机外壳', 'Outdoor Casing', '镀锌钢板喷涂外壳，后背与左侧为防护网，内部由隔板分为风机室和压缩机室。'],
+  icoil: ['室内换热器', 'Indoor Coil', '三折式翅片管换热器包围贯流风扇，最大化迎风面积。制冷时为蒸发器（吸热、除湿），制热时为冷凝器（放热）。'],
+  cfan: ['贯流风扇', 'Cross-flow Fan', '细长的多叶片离心-贯流风轮，气流横穿叶轮，把空气从顶部吸入、经换热器后从底部出风口送出，风量均匀、噪声低。'],
+  louver: ['导风板 / 摆叶', 'Louver & Vanes', '水平导风板上下摆动、竖直摆叶左右摆动，控制送风方向。制冷时偏水平（冷风自然下沉），制热时朝下（热风自然上升）。'],
+  filter: ['过滤网', 'Air Filter', '位于进风格栅下，拦截灰尘毛发，保护换热器翅片清洁。'],
+  drain: ['接水盘', 'Drain Pan', '制冷时蒸发器表面温度低于露点，空气中的水汽凝结成水滴流入接水盘，再经排水管排到室外——这就是空调"除湿"。'],
+  inCase: ['室内机外壳', 'Indoor Casing', 'ABS 塑料外壳：顶部进风格栅、弧形前面板、底部出风口。'],
+  liq: ['液管（细管）', 'Liquid Line', '连接内外机的细铜管，外包保温棉。制冷时输送经节流后的低温气液混合物，制热时输送高压液体。'],
+  gas: ['气管（粗管）', 'Gas Line', '连接内外机的粗铜管，外包保温棉。制冷时输送回压缩机的低压蒸气，制热时输送高温高压排气。'],
+  hose: ['排水管', 'Drain Hose', '波纹排水软管，把室内机接水盘的冷凝水引到室外。'],
+  wall: ['墙体剖面', 'Wall Section', '砖墙 + 内外抹灰，管路通过墙洞（带 PVC 护套）连接内外机。'],
 };
-const read = { HP:2.40, LP:0.80, dis:82, inT:16, outT:42 };
-const G = { HP:document.getElementById('gHP'), LP:document.getElementById('gLP'), dis:document.getElementById('gDis'),
-  inT:document.getElementById('gIn'), outT:document.getElementById('gOut'),
-  inLbl:document.getElementById('gInLbl'), outLbl:document.getElementById('gOutLbl'), modeTag:document.getElementById('modeTag') };
-
-function setMode(m){
-  mode = m;
-  const heat = (m==='heat');
-  dir = heat ? -1 : 1;                       // 四通阀换向：制冷剂反向流动
-  curCol = heat ? pathColHeat : pathCol;     // 制冷剂状态配色切换
-  // 空气：制热时 室内吹热、室外吹冷；进风温度也随之变化
-  airIn.colIn  = heat ? C.roomCool : C.airInWarm;
-  airIn.colOut = heat ? C.airInHot : C.airInCold;
-  airOut.colOut= heat ? C.airOutCold : C.airOutHot;
-  // 盘管换色：室外盘管制热变吸热(蓝)、室内盘管制热变放热(橙)
-  if(condFinMat) condFinMat.color.copy(heat ? C.finCold : C.finHot);
-  if(evapFinMat) evapFinMat.color.copy(heat ? C.finHot : C.finCold);
-  // 部件标签：室外机 冷凝器↔蒸发器；室内机 蒸发器↔冷凝器
-  tagCond.visible=!heat; tagEvapOut.visible=heat;
-  tagEvap.visible=!heat; tagCondIn.visible=heat;
-  // 读数目标
-  const t=TARGETS[m];
-  G.inLbl.textContent=t.inLbl; G.outLbl.textContent=t.outLbl;
-  G.modeTag.textContent=heat?'制热':'制冷';
-  G.modeTag.style.background=heat?'rgba(255,120,76,.22)':'rgba(90,200,150,.22)';
-  G.modeTag.style.color=heat?'#ffb08a':'#7fe0b4';
-  const btn=document.getElementById('modeBtn');
-  btn.textContent=heat?'☀ 制热模式 · 点击切换':'❄ 制冷模式 · 点击切换';
-  btn.style.background=heat?'rgba(150,80,40,.5)':'rgba(40,120,90,.5)';
-  btn.style.borderColor=heat?'rgba(220,140,90,.6)':'rgba(90,200,150,.6)';
-  // 标题副文案
-  document.querySelector('#title p').textContent = heat
-    ? '制热模式：室内机放热(暖)、室外机吸热(凉)，制冷剂反向流动'
-    : '制冷模式：室内机吸热(凉)、室外机放热(暖) · 鼠标拖动旋转 / 滚轮缩放';
+function regPart(key, obj) {
+  const p = PARTS[key] || (PARTS[key] = { key, objs: [], mats: new Set() });
+  p.objs.push(obj);
+  const cache = new Map();
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.part = key; pickables.push(o);
+    if (o.material && o.material.emissive && !o.material.userData.noClone) {
+      if (!cache.has(o.material)) {
+        const m = o.material.clone(); m.userData.baseE = m.emissive.clone();
+        m.clippingPlanes = o.material.clippingPlanes;   // clone() 会复制平面对象，这里保持共享引用以便动画
+        cache.set(o.material, m);
+      }
+      o.material = cache.get(o.material); p.mats.add(o.material);
+    }
+  });
+}
+function setClip(obj, planes) {
+  obj.traverse(o => { if (o.isMesh && o.material) { o.material.clippingPlanes = planes; o.material.clipShadows = true; } });
+}
+function makeLabel(text, sub, color, h = 28, cls = '') {
+  const d = document.createElement('div'); d.className = 'lbl ' + cls;
+  d.style.setProperty('--c', color); d.style.setProperty('--h', h + 'px');
+  d.innerHTML = `<span class="l"></span><span class="d"></span><div class="b"><span class="t">${text}</span><em>${sub}</em></div>`;
+  const o = new CSS2DObject(d); o.userData.el = d; return o;
+}
+function setLabel(o, text, sub, color) {
+  const el = o.userData.el; el.querySelector('.t').textContent = text; el.querySelector('em').textContent = sub;
+  if (color) el.style.setProperty('--c', color);
 }
 
-const clock=new THREE.Clock();
-document.getElementById('modeBtn').onclick=()=> setMode(mode==='cool'?'heat':'cool');
-document.getElementById('playBtn').onclick=e=>{ playing=!playing; e.target.textContent=playing?'⏸ 暂停':'▶ 播放'; };
-document.getElementById('speed').oninput=e=>speed=parseFloat(e.target.value);
-document.getElementById('tRef').onchange=e=>refPts.visible=e.target.checked;
-document.getElementById('tIn').onchange=e=>airIn.pts.visible=e.target.checked;
-document.getElementById('tOut').onchange=e=>airOut.pts.visible=e.target.checked;
-
-function animate(){
-  requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),0.05);
-  const sdt = playing ? dt*speed : 0;
-
-  if(playing) flow += dt*0.05*speed*dir;
-  for(let i=0;i<RN;i++){
-    const t=flow+refOff[i]; const p=pointAt(t);
-    refPos[i*3]=p.x; refPos[i*3+1]=p.y; refPos[i*3+2]=p.z;
-    const c=colorAt(t); refCol[i*3]=c.r; refCol[i*3+1]=c.g; refCol[i*3+2]=c.b;
+// ---------------------------------------------------------------------
+//  制冷剂流动着色器（所有铜管共用）
+//  aSeg=管段编号, aU=管段内归一化位置（制冷方向），aL=弧长
+//  每个管段在当前模式下的循环相位 φ(0..4) 与流向由 uniform 数组给出：
+//  φ 0→1 压缩, 1→2 冷凝, 2→3 节流, 3→4 蒸发
+// ---------------------------------------------------------------------
+const PHI_STOPS = [[0, '#22d3c5'], [0.5, '#ff8a3a'], [1.0, '#ff2d2d'], [1.12, '#ff4526'], [1.55, '#ff7a1e'], [1.85, '#ffa21c'], [2.0, '#ffae1f'],
+  [2.45, '#9aa7ff'], [3.0, '#2f7dff'], [3.8, '#3fb6ff'], [4.0, '#22d3c5']];
+function phiColorHex(phi) {
+  phi = ((phi % 4) + 4) % 4;
+  for (let i = 0; i < PHI_STOPS.length - 1; i++) {
+    const [a, ca] = PHI_STOPS[i], [b, cb] = PHI_STOPS[i + 1];
+    if (phi <= b) { const t = (phi - a) / (b - a); return new THREE.Color(ca).lerp(new THREE.Color(cb), t); }
   }
-  refGeo.attributes.position.needsUpdate=true; refGeo.attributes.color.needsUpdate=true;
-
-  airIn.update(sdt); airOut.update(sdt);
-
-  // 风扇与压缩机转动
-  if(OUT.userData.fan) OUT.userData.fan.rotation.z += sdt*7;
-  if(OUT.userData.comp) OUT.userData.comp.rotation.y += sdt*5;
-  if(IN.userData.fan) IN.userData.fan.rotation.y += sdt*9;
-  if(IN.userData.louver) IN.userData.louver.rotation.z = -0.5 + Math.sin(performance.now()*0.0015)*0.45;
-
-  // 自动高亮
-  if(playing && performance.now()>manualUntil){
-    const tt=((flow%1)+1)%1; let best=0,bd=2;
-    for(let i=0;i<stepT.length;i++){ let dd=Math.abs(tt-stepT[i]); dd=Math.min(dd,1-dd); if(dd<bd){bd=dd;best=i;} }
-    if(best!==activeStep) setActive(best,false);
-  }
-
-  // 读数平滑趋近目标 + 轻微波动
-  const t=TARGETS[mode], k=Math.min(dt*2,1), n=Math.sin(performance.now()*0.002);
-  read.HP+=(t.HP-read.HP)*k; read.LP+=(t.LP-read.LP)*k;
-  read.dis+=(t.dis-read.dis)*k; read.inT+=(t.inT-read.inT)*k; read.outT+=(t.outT-read.outT)*k;
-  G.HP.textContent=(read.HP+n*0.02).toFixed(2)+' MPa';
-  G.LP.textContent=(read.LP+n*0.01).toFixed(2)+' MPa';
-  G.dis.textContent=Math.round(read.dis+n*0.6)+' °C';
-  G.inT.textContent=Math.round(read.inT+n*0.3)+' °C';
-  G.outT.textContent=Math.round(read.outT+n*0.4)+' °C';
-
-  controls.update(); renderer.render(scene,camera);
+  return new THREE.Color(PHI_STOPS[0][1]);
 }
-setMode('cool'); setActive(0,false); animate();
+const stateTex = (() => {
+  const N = 256, d = new Uint8Array(N * 4);
+  for (let i = 0; i < N; i++) {
+    const c = phiColorHex(i / (N - 1) * 4).clone().convertLinearToSRGB();
+    d[i * 4] = c.r * 255; d[i * 4 + 1] = c.g * 255; d[i * 4 + 2] = c.b * 255; d[i * 4 + 3] = 255;
+  }
+  const t = new THREE.DataTexture(d, N, 1); t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+})();
+const NSEG = 24;
+const RU = {
+  uPhi0: { value: new Float32Array(NSEG) }, uPhi1: { value: new Float32Array(NSEG) }, uDir: { value: new Float32Array(NSEG).fill(1) },
+  uTime: { value: 0 }, uFlow: { value: 1 }, uGlow: { value: 1.1 }, uStateTex: { value: stateTex },
+};
+const refMat = new THREE.MeshStandardMaterial({ color: 0xc57b4c, metalness: 1, roughness: 0.3 });
+const refGlowMat = new THREE.MeshStandardMaterial({ color: 0x000000 });   // 泛光通道：只输出发光部分
+refGlowMat.defines = { GLOW_ONLY: '' };
+refMat.userData.noClone = true;
+refMat.onBeforeCompile = refGlowMat.onBeforeCompile = sh => {
+  Object.assign(sh.uniforms, RU);
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', `#include <common>
+      attribute float aSeg; attribute float aU; attribute float aL; attribute float aV;
+      uniform float uPhi0[${NSEG}]; uniform float uPhi1[${NSEG}]; uniform float uDir[${NSEG}];
+      varying float vPhi; varying float vDir; varying float vL; varying float vV;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+      int si = int(aSeg + 0.5);
+      vPhi = mix(uPhi0[si], uPhi1[si], aU); vDir = uDir[si]; vL = aL; vV = aV;`);
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', `#include <common>
+      uniform sampler2D uStateTex; uniform float uTime; uniform float uFlow; uniform float uGlow;
+      varying float vPhi; varying float vDir; varying float vL; varying float vV;
+      float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+      float vapor(float f){ f = mod(f, 4.0);
+        if (f < 1.1) return 1.0; if (f < 1.9) return 1.0 - (f - 1.1) / 0.8; if (f < 2.0) return 0.0;
+        if (f < 3.0) return 0.25 * (f - 2.0); if (f < 3.85) return 0.25 + 0.75 * (f - 3.0) / 0.85; return 1.0; }`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      vec3 glowOut = vec3(0.0);
+      {
+        vec3 sc = texture2D(uStateTex, vec2(clamp(mod(vPhi, 4.0) * 0.25, 0.002, 0.998), 0.5)).rgb;
+        float q = vapor(vPhi);
+        float s = vL - vDir * uTime;
+        float liq = 0.5 + 0.28 * sin(s * 7.0);
+        float g = fract(s * 1.7);
+        float gas = smoothstep(0.0, 0.05, g) * (1.0 - smoothstep(0.16, 0.42, g));
+        vec2 cc = vec2(s * 5.5, vV * 7.0); vec2 ci = floor(cc); vec2 cf = fract(cc) - 0.5;
+        float bub = (1.0 - smoothstep(0.16, 0.34, length(cf))) * step(h12(ci), 0.2 + 0.6 * q);
+        float tp = clamp(4.0 * q * (1.0 - q), 0.0, 1.0);
+        float pat = mix(liq, 0.28 + 1.25 * gas, q * q) + bub * tp * 0.9;
+        diffuseColor.rgb = mix(diffuseColor.rgb, sc * 0.22, uFlow * 0.85);
+        metalnessFactor = mix(metalnessFactor, 0.25, uFlow);
+        roughnessFactor = mix(roughnessFactor, 0.35, uFlow);
+        glowOut = sc * pat * uFlow * uGlow;
+        totalEmissiveRadiance += glowOut;
+      }`)
+    .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+      #ifdef GLOW_ONLY
+        gl_FragColor = vec4(glowOut, 1.0);
+      #endif`);
+};
+const SEG = {}; let segCount = 0;
+function addSeg(name, curves, parent, radius, render = true, part = null) {
+  const path = curves.curves ? curves : mkPath(curves);
+  const s = { name, id: segCount++, path, parent, len: path.getLength() };
+  if (render) {
+    s.mesh = mesh(tubeGeo(path, radius, radius > 0.06 ? 12 : 9, { seg: s.id }), refMat, parent);
+    if (part) regPart(part, s.mesh);
+  }
+  SEG[name] = s; return s;
+}
 
-addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+// ---------------------------------------------------------------------
+//  环境：墙体剖面、地面
+// ---------------------------------------------------------------------
+const WALL = { z1: 2.0, notchY: 7.3, notchZ: 1.75, notchR: 0.4 };
+{
+  const brick = canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#6b4a3c'; g.fillRect(0, 0, w, h);
+    g.save(); g.translate(w, 0); g.rotate(PI / 2);
+    const bw = 128, bh = 48;
+    for (let r = 0; r * bh < w + bh; r++) for (let c = -1; c * bw < h + bw; c++) {
+      const x = c * bw + (r % 2 ? bw / 2 : 0), y = r * bh;
+      const l = 38 + Math.random() * 14;
+      g.fillStyle = `hsl(${12 + Math.random() * 8},${38 + Math.random() * 12}%,${l}%)`;
+      g.fillRect(x + 4, y + 4, bw - 8, bh - 8);
+    }
+    g.restore();
+  });
+  brick.wrapS = brick.wrapT = THREE.RepeatWrapping; brick.repeat.set(0.55, 0.55);
+  const shape = new THREE.Shape();
+  const { notchY: ny, notchZ: nz, notchR: nr, z1 } = WALL, dy = Math.sqrt(nr * nr - (z1 - nz) ** 2);
+  // 截面坐标 (u=-z, v=y)
+  shape.moveTo(12, -7); shape.lineTo(-z1, -7); shape.lineTo(-z1, ny - dy);
+  const a0 = Math.atan2(-dy, -(z1 - nz));
+  shape.absarc(-nz, ny, nr, a0, -a0, false);
+  shape.lineTo(-z1, 11); shape.lineTo(12, 11); shape.lineTo(12, -7);
+  const mk = (depth, mat, x0) => {
+    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 24 });
+    g.rotateY(PI / 2); g.translate(x0, 0, 0);
+    const m = mesh(g, mat, scene); m.castShadow = true; return m;
+  };
+  const wallG = new THREE.Group(); scene.add(wallG);
+  wallG.add(mk(2.1, new THREE.MeshStandardMaterial({ map: brick, roughness: 0.92, envMapIntensity: 0.5 }), -1.05));
+  wallG.add(mk(0.15, new THREE.MeshStandardMaterial({ color: 0xb9b6b0, roughness: 0.9, envMapIntensity: 0.5 }), 1.05));
+  wallG.add(mk(0.15, new THREE.MeshStandardMaterial({ color: 0x8c8a86, roughness: 0.92, envMapIntensity: 0.5 }), -1.2));
+  // 穿墙 PVC 护套
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(nr - 0.02, nr - 0.02, 2.44, 32, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xf1f3f5, roughness: 0.5, side: THREE.DoubleSide }));
+  sleeve.rotation.z = PI / 2; sleeve.position.set(0, ny, nz); wallG.add(sleeve);
+  regPart('wall', wallG);
+
+  const fade = canvasTex(256, 256, (g, w, h) => {
+    const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(.55, '#bbb'); gr.addColorStop(1, '#000');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }, false);
+  const wood = canvasTex(512, 512, (g, w, h) => {
+    for (let i = 0; i < 8; i++) {
+      const l = 20 + Math.random() * 6;
+      g.fillStyle = `hsl(28,32%,${l}%)`; g.fillRect(0, i * 64, w, 64);
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2; g.strokeRect(0, i * 64, w, 64);
+      g.beginPath(); const x = Math.random() * w; g.moveTo(x, i * 64); g.lineTo(x, i * 64 + 64); g.stroke();
+      for (let k = 0; k < 14; k++) { g.strokeStyle = `rgba(255,220,180,${Math.random() * .05})`; g.beginPath(); const yy = i * 64 + Math.random() * 64; g.moveTo(0, yy); g.bezierCurveTo(w * .3, yy + 4, w * .6, yy - 4, w, yy); g.stroke(); }
+    }
+  });
+  wood.wrapS = wood.wrapT = THREE.RepeatWrapping; wood.repeat.set(3, 3);
+  const floorIn = new THREE.Mesh(new THREE.PlaneGeometry(22, 22),
+    new THREE.MeshStandardMaterial({ map: wood, roughness: 0.7, alphaMap: fade, transparent: true, depthWrite: false }));
+  floorIn.rotation.x = -PI / 2; floorIn.position.set(11.2, -7.0, -3); floorIn.receiveShadow = true; scene.add(floorIn);
+  const conc = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#4a4f57'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},255,${Math.random() * .05})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3; g.strokeRect(0, 0, w, h);
+  });
+  conc.wrapS = conc.wrapT = THREE.RepeatWrapping; conc.repeat.set(5, 5);
+  const floorOut = new THREE.Mesh(new THREE.PlaneGeometry(24, 24),
+    new THREE.MeshStandardMaterial({ map: conc, roughness: 0.95, alphaMap: fade, transparent: true, depthWrite: false }));
+  floorOut.rotation.x = -PI / 2; floorOut.position.set(-9.5, -7.0, 3); floorOut.receiveShadow = true; scene.add(floorOut);
+}
+
+// =====================================================================
+//  室外机  局部坐标：x 宽 [-4,4]，y 高 [0,5.5]，z 深 [-1.5,1.5]，正面 +z，右侧 +x 朝墙
+// =====================================================================
+const OUT = new THREE.Group(); OUT.position.set(-6.4, -6.7, 4.0); scene.add(OUT);
+const out = {};
+const cutComp = new THREE.Plane(V(0, 0, -1), 99), cut4WV = new THREE.Plane(V(0, 0, -1), 99), cutEEV = new THREE.Plane(V(0, 0, -1), 99);
+{
+  const caseG = new THREE.Group(); OUT.add(caseG);
+  // 底盘与支脚
+  mesh(box(8.0, 0.18, 3.0), MAT.galv, caseG, 0, 0.21, 0);
+  for (const x of [-2.9, 2.9]) {
+    mesh(box(0.55, 0.3, 3.3), MAT.steelDark, caseG, x, -0.15 + 0.0, 0);
+    mesh(box(0.6, 0.06, 0.6), MAT.rubber, caseG, x, -0.27, -1.2);
+    mesh(box(0.6, 0.06, 0.6), MAT.rubber, caseG, x, -0.27, 1.2);
+  }
+  // 前面板（风扇室，带风口）
+  const fs = shapeRR(-4.0, 0.3, 1.9, 5.5, 0.06); fs.holes.push(holeCircle(-1.2, 2.85, 2.08));
+  mesh(extrude(fs, 0.05, 0.015, 64), MAT.sheet, caseG, 0, 0, 1.44);
+  // 顶板 / 压缩机室前板（剖视时移开）
+  const topG = extrude(shapeRR(-4.04, -1.54, 4.04, 1.54, 0.08), 0.05, 0.02); topG.rotateX(-PI / 2);
+  out.top = mesh(topG, MAT.sheet.clone(), caseG, 0, 5.47, 0);
+  const fc = shapeRR(1.9, 0.3, 4.0, 5.5, 0.06);
+  for (let i = 0; i < 6; i++) fc.holes.push(holeRR(2.35, 1.0 + i * 0.22, 3.55, 1.08 + i * 0.22, 0.03));
+  out.frontComp = mesh(extrude(fc, 0.05, 0.015), MAT.sheet.clone(), caseG, 0, 0, 1.44);
+  // 右侧板（把手凹槽、百叶、截止阀窗口）
+  const rs = shapeRR(-1.5, 0.3, 1.5, 5.5, 0.06);
+  rs.holes.push(holeRR(-0.55, 4.45, 0.55, 4.75, 0.12));
+  for (let i = 0; i < 7; i++) rs.holes.push(holeRR(-0.2, 2.3 + i * 0.22, 1.25, 2.38 + i * 0.22, 0.03));
+  rs.holes.push(holeRR(-1.45, 0.55, -0.62, 1.85, 0.06));
+  const rsg = extrude(rs, 0.05, 0.015); rsg.rotateY(PI / 2); mesh(rsg, MAT.sheet, caseG, 3.97, 0, 0);
+  // 压缩机室后板
+  mesh(box(2.1, 5.2, 0.05), MAT.sheet, caseG, 2.95, 2.9, -1.47);
+  // 左前立柱
+  mesh(box(0.14, 5.2, 0.3), MAT.sheet, caseG, -3.95, 2.9, 1.3);
+  // 隔板
+  mesh(box(0.04, 5.15, 2.9), MAT.galv, caseG, 1.9, 2.87, 0);
+  // 后背 / 左侧防护网
+  const gg = [];
+  for (let x = -3.0; x <= 1.5; x += 0.3) gg.push(rod(V(x, 0.35, -1.53), V(x, 5.25, -1.53), 0.012));
+  for (let y = 0.6; y <= 5.3; y += 0.45) gg.push(rod(V(-3.1, y, -1.53), V(1.75, y, -1.53), 0.012));
+  for (let z = -0.55; z <= 1.2; z += 0.3) gg.push(rod(V(-3.98, 0.35, z), V(-3.98, 5.25, z), 0.012));
+  for (let y = 0.6; y <= 5.3; y += 0.45) gg.push(rod(V(-3.98, y, -0.6), V(-3.98, y, 1.2), 0.012));
+  mesh(mergeGeometries(gg), MAT.steelDark, caseG);
+  // 风口格栅（同心圆 + 辐条）与导风圈
+  const gr = [];
+  for (let r = 0.36; r <= 2.05; r += 0.17) { const t = new THREE.TorusGeometry(r, 0.016, 6, 80); t.translate(-1.2, 2.85, 1.56); gr.push(t); }
+  for (let i = 0; i < 10; i++) { const a = i / 10 * PI * 2; gr.push(rod(V(-1.2 + Math.cos(a) * 0.25, 2.85 + Math.sin(a) * 0.25, 1.56), V(-1.2 + Math.cos(a) * 2.1, 2.85 + Math.sin(a) * 2.1, 1.56), 0.018)); }
+  mesh(mergeGeometries(gr), new THREE.MeshStandardMaterial({ color: 0x3b4149, roughness: 0.45, metalness: 0.6 }), caseG);
+  const badge = mesh(cyl(0.3, 0.3, 0.05, 32), MAT.plasticDark, caseG, -1.2, 2.85, 1.58); badge.rotation.x = PI / 2;
+  const bell = new THREE.Mesh(lathe([[2.04, 0.5], [2.04, 1.05], [2.08, 1.28], [2.2, 1.4], [2.45, 1.44]], 72), MAT.plasticGray);
+  bell.rotation.x = PI / 2; bell.position.set(-1.2, 2.85, 0); bell.castShadow = true; caseG.add(bell);
+  regPart('outCase', caseG);
+
+  // ---- 室外换热器：L 形双排 U 管 + 铝翅片 ----
+  const CO = { xR: 1.5, zR: -1.1, xC: -3.1, zC: -0.6, rC: 0.5, xL: -3.6, zF: 1.1 };
+  const lPass = (y, d, rev) => {
+    const zr = CO.zR - d, xl = CO.xL - d, R = CO.rC + d;
+    const pA = V(CO.xR, y, zr), pB = V(CO.xC, y, zr), pC = V(xl, y, CO.zC), pD = V(xl, y, CO.zF);
+    const arc = (a0, a1) => new Arc3(V(CO.xC, y, CO.zC), V(1, 0, 0), V(0, 0, 1), R, a0, a1);
+    return !rev ? [new THREE.LineCurve3(pA, pB), arc(-PI / 2, -PI), new THREE.LineCurve3(pC, pD)]
+      : [new THREE.LineCurve3(pD, pC), arc(-PI, -PI / 2), new THREE.LineCurve3(pB, pA)];
+  };
+  const tubes = [];
+  for (let k = 11; k >= 0; k--) { tubes.push({ y: 0.62 + 0.4 * k, d: 0.11 }); tubes.push({ y: 0.42 + 0.4 * k, d: -0.11 }); }
+  const oc = [];
+  tubes.forEach((t, j) => {
+    oc.push(...lPass(t.y, t.d, j % 2 === 1));
+    const n = tubes[j + 1]; if (!n) return;
+    if (j % 2 === 0) oc.push(new UBend(V(CO.xL - t.d, t.y, CO.zF), V(CO.xL - n.d, n.y, CO.zF), V(0, 0, 1)));
+    else oc.push(new UBend(V(CO.xR, t.y, CO.zR - t.d), V(CO.xR, n.y, CO.zR - n.d), V(1, 0, 0)));
+  });
+  out.coilStart = V(CO.xR, tubes[0].y, CO.zR - tubes[0].d);
+  out.coilEnd = V(CO.xR, tubes[23].y, CO.zR - tubes[23].d);
+  out.coilCurves = oc;
+  // 翅片
+  const cl = mkPath([new THREE.LineCurve3(V(CO.xR, 0, CO.zR), V(CO.xC, 0, CO.zR)),
+    new Arc3(V(CO.xC, 0, CO.zC), V(1, 0, 0), V(0, 0, 1), CO.rC, -PI / 2, -PI), new THREE.LineCurve3(V(CO.xL, 0, CO.zC), V(CO.xL, 0, CO.zF))]);
+  const L = cl.getLength(), nf = Math.floor(L / 0.034);
+  const coilG = new THREE.Group(); OUT.add(coilG);
+  const finsAll = [], finsWin = [];
+  for (let i = 0; i < nf; i++) {
+    const u = (i + 0.5) / nf, p = cl.getPointAt(u), t = cl.getTangentAt(u);
+    const e = { p: V(p.x, 2.78, p.z), q: new THREE.Quaternion().setFromUnitVectors(V(1, 0, 0), t.normalize()) };
+    (p.z < -1.0 && p.x > -2.5 && p.x < 0.9 ? finsWin : finsAll).push(e);
+  }
+  const finGeo = box(0.008, 4.85, 0.5);
+  const mkInst = (list, mat) => {
+    const im = new THREE.InstancedMesh(finGeo, mat, list.length); const m4 = new THREE.Matrix4();
+    list.forEach((e, i) => { m4.compose(e.p, e.q, V(1, 1, 1)); im.setMatrixAt(i, m4); });
+    im.castShadow = true; im.receiveShadow = true; coilG.add(im); return im;
+  };
+  mkInst(finsAll, MAT.finOut);
+  out.finWin = { mesh: mkInst(finsWin, MAT.finOut), list: finsWin, h: 4.85, y0: 0.355, keep: 0.34 };
+  mesh(box(0.03, 4.95, 0.56), MAT.galv, coilG, CO.xR + 0.01, 2.78, CO.zR);
+  mesh(box(0.56, 4.95, 0.03), MAT.galv, coilG, CO.xL, 2.78, CO.zF + 0.01);
+  regPart('ocoil', coilG);
+
+  // ---- 轴流风扇 + 电机 + 支架 ----
+  const fanG = new THREE.Group(); fanG.position.set(-1.2, 2.85, 0.8); OUT.add(fanG);
+  const blade = (() => {
+    const r0 = 0.42, r1 = 1.92, NR = 24, NC = 14, pos = [], idx = [];
+    for (let i = 0; i <= NR; i++) {
+      const rho = i / NR, r = lerp(r0, r1, rho);
+      let chord = lerp(1.05, 0.62, rho);
+      if (rho > 0.78) chord *= lerp(1, 0.35, Math.pow((rho - 0.78) / 0.22, 1.6));
+      const mid = 0.6 * Math.pow(rho, 1.5), pitch = THREE.MathUtils.degToRad(lerp(40, 19, rho));
+      for (let j = 0; j <= NC; j++) {
+        const s = j / NC, th = mid + (s - 0.5) * chord, arc = (s - 0.5) * chord * r;
+        const z = -arc * Math.tan(pitch) - 0.05 * Math.sin(PI * s) * (1 - 0.3 * rho);
+        pos.push(r * Math.cos(th), r * Math.sin(th), z);
+      }
+    }
+    for (let i = 0; i < NR; i++) for (let j = 0; j < NC; j++) {
+      const a = i * (NC + 1) + j, b = a + NC + 1; idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+    const g = new THREE.BufferGeometry(); g.setIndex(idx);
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+  })();
+  const rotor = new THREE.Group(); fanG.add(rotor);
+  for (let i = 0; i < 3; i++) { const b = mesh(blade, MAT.fanBlade, rotor); b.rotation.z = i / 3 * PI * 2; }
+  const hub = mesh(cyl(0.44, 0.46, 0.5, 40), MAT.fanBlade, rotor); hub.rotation.x = PI / 2;
+  const cap = mesh(new THREE.SphereGeometry(0.44, 32, 16, 0, PI * 2, 0, PI / 2), MAT.fanBlade, rotor, 0, 0, 0.25); cap.rotation.x = PI / 2; cap.scale.set(1, 0.45, 1);
+  out.fan = rotor;
+  const motor = mesh(cyl(0.4, 0.4, 0.42, 36), MAT.black, fanG, 0, 0, -0.52); motor.rotation.x = PI / 2;
+  for (let i = 0; i < 14; i++) { const a = i / 14 * PI * 2; mesh(box(0.05, 0.05, 0.4), MAT.black, fanG, Math.cos(a) * 0.41, Math.sin(a) * 0.41, -0.52); }
+  const bracketG = new THREE.Group(); OUT.add(bracketG);
+  for (const dx of [-0.42, 0.42]) mesh(box(0.14, 5.15, 0.1), MAT.galv, bracketG, -1.2 + dx, 2.87, -0.12);
+  mesh(box(1.1, 0.5, 0.06), MAT.galv, bracketG, -1.2, 2.85, -0.1);
+  regPart('ofan', fanG); regPart('ofan', bracketG);
+
+  // ---- 压缩机（带剖切内部结构） ----
+  const comp = new THREE.Group(); comp.position.set(2.6, 0.55, -0.3); OUT.add(comp);
+  const shell = mesh(lathe([[0, 0], [0.35, 0.02], [0.55, 0.1], [0.6, 0.28], [0.6, 2.0], [0.55, 2.18], [0.38, 2.28], [0.001, 2.32]], 56), MAT.compPaint, comp);
+  const tcap = mesh(cyl(0.2, 0.2, 0.16, 24), MAT.black, comp, 0.26, 2.26, 0.22);
+  const feet = new THREE.Group(); comp.add(feet);
+  for (let i = 0; i < 3; i++) {
+    const a = PI / 2 + i * 2 * PI / 3, x = Math.cos(a) * 0.72, z = Math.sin(a) * 0.72;
+    const tab = mesh(box(0.34, 0.04, 0.26), MAT.compPaint, feet, x * 0.85, 0.1, z * 0.85); tab.rotation.y = -a;
+    mesh(cyl(0.1, 0.12, 0.28, 16), MAT.rubber, feet, x, -0.08, z);
+    mesh(cyl(0.035, 0.035, 0.36, 8), MAT.steel, feet, x, 0.02, z);
+  }
+  // 内部：泵体、滚动活塞、滑片、曲轴、电机
+  const inner = new THREE.Group(); comp.add(inner);
+  const cutMats = [];
+  const pump = mesh(lathe([[0.3, 0.25], [0.56, 0.25], [0.56, 0.67], [0.3, 0.67], [0.3, 0.25]], 48), MAT.steelDark.clone(), inner);
+  const bearing = mesh(lathe([[0.08, 0.68], [0.42, 0.68], [0.42, 0.78], [0.2, 0.8], [0.2, 0.98], [0.08, 0.98]], 40), MAT.steel.clone(), inner);
+  const muff = mesh(lathe([[0.2, 0.8], [0.4, 0.8], [0.38, 0.88], [0.22, 0.92]], 40), MAT.steel.clone(), inner);
+  const stator = mesh(lathe([[0.36, 1.05], [0.58, 1.05], [0.58, 1.77], [0.36, 1.77], [0.36, 1.05]], 56), MAT.lamination.clone(), inner);
+  const w1 = mesh(new THREE.TorusGeometry(0.47, 0.075, 10, 40), MAT.winding.clone(), inner, 0, 1.0, 0); w1.rotation.x = PI / 2;
+  const w2 = mesh(new THREE.TorusGeometry(0.47, 0.075, 10, 40), MAT.winding.clone(), inner, 0, 1.82, 0); w2.rotation.x = PI / 2;
+  cutMats.push(shell.material, pump.material, bearing.material, muff.material, stator.material, w1.material, w2.material);
+  const spin = new THREE.Group(); inner.add(spin);
+  mesh(cyl(0.07, 0.07, 1.95, 16), MAT.steel, spin, 0, 1.1, 0);
+  mesh(cyl(0.32, 0.32, 0.7, 40), new THREE.MeshStandardMaterial({ color: 0x8d949c, roughness: 0.35, metalness: 0.9 }), spin, 0, 1.41, 0);
+  mesh(cyl(0.33, 0.33, 0.04, 40), MAT.steel, spin, 0, 1.06, 0); mesh(cyl(0.33, 0.33, 0.04, 40), MAT.steel, spin, 0, 1.76, 0);
+  const piston = mesh(lathe([[0.13, 0.27], [0.235, 0.27], [0.235, 0.65], [0.13, 0.65], [0.13, 0.27]], 40), new THREE.MeshStandardMaterial({ color: 0xb8c0c8, roughness: 0.3, metalness: 0.95 }), inner);
+  const vane = mesh(box(0.28, 0.38, 0.045), MAT.steel, inner, 0.4, 0.46, 0);
+  const chamber = inner.userData.ch = mesh(cyl(0.29, 0.29, 0.4, 40, true), new THREE.MeshBasicMaterial({ color: 0x22d3c5, transparent: true, opacity: 0.35, side: THREE.BackSide, depthWrite: false }), inner, 0, 0.46, 0, false);
+  chamber.userData.bloom = true;
+  out.comp = { g: comp, spin, piston, vane, chamber };
+  setClip(shell, [cutComp]); cutMats.forEach(m => { m.clippingPlanes = [cutComp]; m.clipShadows = true; });
+  regPart('comp', comp);
+
+  // ---- 气液分离器 ----
+  const acc = new THREE.Group(); OUT.add(acc);
+  mesh(lathe([[0.001, 1.5], [0.18, 1.52], [0.26, 1.62], [0.26, 2.82], [0.18, 2.93], [0.001, 2.95]], 36), MAT.compPaint, acc, 3.55, 0, -0.3);
+  const strap = mesh(new THREE.TorusGeometry(0.275, 0.02, 6, 36), MAT.steel, acc, 3.55, 2.2, -0.3); strap.rotation.x = PI / 2;
+  mesh(box(0.35, 0.08, 0.05), MAT.steel, acc, 3.2, 2.2, -0.3);
+  regPart('acc', acc);
+
+  // ---- 四通阀（剖切可见滑块）----
+  const fw = new THREE.Group(); fw.position.set(2.85, 3.7, 0.45); OUT.add(fw);
+  const body = mesh(cyl(0.13, 0.13, 0.9, 32, true), MAT.brass.clone(), fw); body.rotation.z = PI / 2;
+  const endL = mesh(cyl(0.14, 0.14, 0.05, 32), MAT.brass.clone(), fw, -0.46, 0, 0); endL.rotation.z = PI / 2;
+  const endR = mesh(cyl(0.14, 0.14, 0.05, 32), MAT.brass.clone(), fw, 0.46, 0, 0); endR.rotation.z = PI / 2;
+  [body, endL, endR].forEach(m => { m.material.clippingPlanes = [cut4WV]; m.material.clipShadows = true; });
+  const slider = new THREE.Group(); fw.add(slider);
+  mesh(box(0.34, 0.07, 0.16), new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.4 }), slider, 0, 0.07, 0);
+  mesh(box(0.34, 0.04, 0.04), MAT.steel, slider, 0, 0.0, 0);
+  for (const x of [-0.36, 0.36]) { const pd = mesh(cyl(0.115, 0.115, 0.05, 28), MAT.steel, slider, x, 0, 0); pd.rotation.z = PI / 2; }
+  mesh(cyl(0.012, 0.012, 0.72, 8), MAT.steel, slider).rotation.z = PI / 2;
+  out.slider = slider;
+  // 电磁先导阀 + 毛细管
+  const pilot = new THREE.Group(); pilot.position.set(0, 0.42, -0.1); fw.add(pilot);
+  mesh(cyl(0.045, 0.045, 0.42, 16), MAT.brass, pilot).rotation.z = PI / 2;
+  out.coil = mesh(box(0.22, 0.24, 0.2), new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.5, emissive: 0x000000 }), pilot, 0.12, 0.14, 0);
+  const cap3 = [[-0.21, 0, -0.44], [0, 0, 0], [0.21, 0, 0.44]];
+  cap3.forEach(([px, , bx]) => {
+    const p = bentPath([V(px, 0.42, -0.1), V(px, 0.3, -0.1), V(bx * 0.95, 0.22, -0.1), V(bx, 0.05, -0.02)], 0.06);
+    mesh(tubeGeo(p, 0.012, 6), MAT.copper, fw);
+  });
+  regPart('fourway', fw);
+
+  // ---- 电子膨胀阀 ----
+  const eev = new THREE.Group(); eev.position.set(2.2, 0, 1.05); OUT.add(eev);
+  const eb = mesh(cyl(0.1, 0.1, 0.34, 28, false), MAT.brass.clone(), eev, 0, 1.82, 0);
+  eb.material.clippingPlanes = [cutEEV]; eb.material.clipShadows = true;
+  const ecoil = mesh(cyl(0.15, 0.15, 0.34, 28), MAT.black.clone(), eev, 0, 2.17, 0);
+  ecoil.material.clippingPlanes = [cutEEV];
+  out.needle = mesh(cyl(0.012, 0.045, 0.22, 16), MAT.steel, eev, 0, 1.78, 0);
+  mesh(cyl(0.035, 0.035, 0.2, 12), MAT.steel, eev, 0, 1.98, 0);
+  mesh(tubeGeo(bentPath([V(0.1, 2.25, 0), V(0.4, 2.35, 0.1), V(0.9, 2.6, 0.05), V(1.3, 3.5, -0.05)], 0.2), 0.022, 6), MAT.cable, eev);
+  regPart('eev', eev);
+
+  // ---- 截止阀 ----
+  const vg = new THREE.Group(); OUT.add(vg);
+  mesh(box(0.06, 1.7, 1.0), MAT.steelDark, vg, 4.05, 1.25, 1.0);
+  for (const [y, s] of [[0.9, 0.8], [1.5, 1]]) {
+    mesh(box(0.28 * s, 0.3 * s, 0.3 * s), MAT.brass, vg, 4.2, y, 1.05);
+    mesh(cyl(0.075 * s, 0.075 * s, 0.16, 6), MAT.brass, vg, 4.2, y + 0.22 * s, 1.05);
+    const nut = mesh(cyl(0.11 * s, 0.11 * s, 0.14, 6), MAT.brass, vg, 4.38, y, 1.05); nut.rotation.z = PI / 2;
+  }
+  regPart('valves', vg);
+
+  // ---- 电控盒 ----
+  const eboxG = new THREE.Group(); OUT.add(eboxG);
+  mesh(box(1.9, 0.04, 1.6), MAT.galv, eboxG, 2.95, 4.6, 0.55);
+  mesh(box(1.9, 0.6, 0.04), MAT.galv, eboxG, 2.95, 4.9, -0.25);
+  mesh(box(1.9, 0.6, 0.04), MAT.galv, eboxG, 2.95, 4.9, 1.35);
+  mesh(box(0.04, 0.6, 1.6), MAT.galv, eboxG, 3.9, 4.9, 0.55);
+  mesh(box(1.75, 0.03, 1.45), MAT.pcb, eboxG, 2.95, 4.72, 0.55);
+  for (let i = 0; i < 3; i++) mesh(cyl(0.09, 0.09, 0.3, 20), new THREE.MeshStandardMaterial({ color: i ? 0x1d3f7a : 0x222428, roughness: 0.35, metalness: 0.3 }), eboxG, 2.35 + i * 0.22, 4.88, 1.05);
+  const hs = mesh(box(0.7, 0.08, 0.5), MAT.steel, eboxG, 3.35, 4.78, 0.2);
+  for (let i = 0; i < 9; i++) mesh(box(0.7, 0.3, 0.012), MAT.steel, eboxG, 3.35, 4.97, -0.02 + i * 0.055);
+  for (let i = 0; i < 2; i++) mesh(box(0.2, 0.16, 0.14), new THREE.MeshStandardMaterial({ color: 0x2b64c4, roughness: 0.4 }), eboxG, 2.4 + i * 0.26, 4.81, 0.35);
+  const ind = mesh(new THREE.TorusGeometry(0.1, 0.045, 10, 24), MAT.winding, eboxG, 2.55, 4.78, 0.72); ind.rotation.x = PI / 2;
+  mesh(box(0.2, 0.14, 0.9), new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.5 }), eboxG, 3.7, 4.8, 0.7);
+  mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x5fe0a8).multiplyScalar(3) }), eboxG, 2.2, 4.75, 0.2, false).userData.bloom = true;
+  // 电缆：电控 → 压缩机接线盒 / 风机
+  const wcol = [0x1a1a1a, 0x2a56d6, 0xc93a2a];
+  wcol.forEach((c, i) => mesh(tubeGeo(bentPath([V(2.3 + i * 0.05, 4.7, 0.2), V(2.4 + i * 0.05, 4.3, 0.2), V(2.85 + i * 0.03, 3.2, 0.1), V(2.86 + i * 0.03, 2.9, -0.08)], 0.3), 0.018, 6),
+    new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }), eboxG));
+  mesh(tubeGeo(bentPath([V(2.05, 4.75, 0.9), V(1.95, 5.2, 0.9), V(-0.4, 5.25, 0.2), V(-1.0, 3.3, -0.4), V(-1.1, 3.05, -0.52)], 0.4), 0.022, 6), MAT.cable, eboxG);
+  regPart('ebox', eboxG);
+}
+
+// =====================================================================
+//  室内机  局部坐标：X 宽 [-4.5,4.5]，Y 高 [0,3]，Z 深 [0,2.3]，正面 +Z
+//  组旋转 +90°：局部 Z→世界 +x，局部 X→世界 -z
+// =====================================================================
+const IN = new THREE.Group(); IN.position.set(1.2, 7.0, -3.2); IN.rotation.y = PI / 2; scene.add(IN);
+const inn = {};
+const cutIn = new THREE.Plane(V(0, 0, -1), 99);
+const IFAN = { z: 1.05, y: 1.15, r: 0.5, x0: -3.85, x1: 3.55 };
+const ISEG = [
+  { a: [1.85, 1.0], b: [1.9, 1.85] },     // 前下段
+  { a: [1.95, 1.97], b: [1.27, 2.72] },   // 前上段
+  { a: [1.05, 2.72], b: [0.45, 1.55] },   // 后段
+];
+{
+  const caseG = new THREE.Group(); IN.add(caseG);
+  const W = 8.76;
+  const sil = [[0.02, 0.3], [0.02, 2.86], [0.12, 2.99], [1.6, 3.0], [1.98, 2.93], [2.2, 2.68], [2.3, 2.2], [2.3, 1.4], [2.24, 0.98], [2.1, 0.72], [1.8, 0.5], [1.35, 0.3], [0.8, 0.12], [0.3, 0.04], [0.08, 0.1]];
+  for (const x of [-4.44, 4.44]) mesh(profileGeo(sil, 0.08, { closed: true, smooth: 96, bevel: 0.03 }), MAT.plastic, caseG, x, 0, 0);
+  mesh(profileGeo([[1.5, 3.0], [1.98, 2.93], [2.2, 2.68], [2.3, 2.2], [2.3, 1.4], [2.24, 0.98], [2.12, 0.76]], W, { thick: 0.05, smooth: 40 }), MAT.plastic, caseG);
+  mesh(profileGeo([[2.12, 0.76], [2.0, 0.64], [1.9, 0.6]], W, { thick: 0.05, smooth: 8 }), MAT.plastic, caseG);
+  mesh(profileGeo([[1.35, 0.31], [0.8, 0.13], [0.3, 0.05], [0.08, 0.12], [0.03, 0.35]], W, { thick: 0.05, smooth: 24 }), MAT.plastic, caseG);
+  mesh(profileGeo([[0.03, 0.3], [0.03, 2.88], [0.13, 2.98]], W, { thick: 0.06, smooth: 10 }), MAT.plasticGray, caseG);
+  // 顶部进风格栅
+  const tg = shapeRR(-4.38, -1.6, 4.38, -0.1, 0.05);
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 4; c++) {
+    const z0 = 0.26 + r * 0.16, x0 = -4.15 + c * 2.1;
+    tg.holes.push(holeRR(x0, -z0 - 0.08, x0 + 1.95, -z0, 0.03));
+  }
+  const tgg = extrude(tg, 0.035, 0, 4); tgg.rotateX(-PI / 2);
+  mesh(tgg, MAT.plastic, caseG, 0, 2.965, 0);
+  // 显示屏
+  const dispTex = document.createElement('canvas'); dispTex.width = 256; dispTex.height = 96;
+  inn.dispCanvas = dispTex; inn.dispTex = new THREE.CanvasTexture(dispTex); inn.dispTex.colorSpace = THREE.SRGBColorSpace;
+  const disp = mesh(new THREE.PlaneGeometry(0.9, 0.34), new THREE.MeshBasicMaterial({ map: inn.dispTex, transparent: true }), caseG, 2.4, 1.75, 2.335, false);
+  disp.material.color.setScalar(1.6); disp.userData.bloom = true;
+  const dispBg = mesh(shapeGeoRR(0.98, 0.4, 0.06), new THREE.MeshPhysicalMaterial({ color: 0x0a0d12, roughness: 0.12, clearcoat: 1 }), caseG, 2.4, 1.75, 2.328, false);
+  const setClipIn = o => setClip(o, [cutIn]);
+  regPart('inCase', caseG); setClipIn(caseG);
+  disp.material.clippingPlanes = null; dispBg.material.clippingPlanes = null;
+
+  // 蜗壳 + 稳流舌 + 接水盘
+  const volute = mesh(profileGeo([[0.42, 1.45], [0.4, 1.1], [0.5, 0.78], [0.72, 0.56], [1.02, 0.44], [1.35, 0.36], [1.6, 0.33]], 8.0, { thick: 0.04, smooth: 30 }), MAT.plasticGray, IN, -0.15);
+  regPart('inCase', volute); setClipIn(volute);
+  const drainG = new THREE.Group(); IN.add(drainG);
+  mesh(profileGeo([[1.64, 1.03], [1.64, 0.86], [2.12, 0.86], [2.12, 1.0]], 8.2, { thick: 0.03 }), MAT.plasticGray, drainG, -0.15);
+  mesh(profileGeo([[1.64, 0.9], [1.55, 0.8], [1.45, 0.76]], 8.0, { thick: 0.03, smooth: 8 }), MAT.plasticGray, drainG, -0.15);
+  mesh(profileGeo([[0.3, 1.52], [0.3, 1.42], [0.66, 1.42], [0.66, 1.5]], 8.0, { thick: 0.025 }), MAT.plasticGray, drainG, -0.15);
+  regPart('drain', drainG);
+  // 过滤网
+  const meshTex = canvasTex(64, 64, (g, w, h) => {
+    g.fillStyle = 'rgba(0,0,0,0)'; g.clearRect(0, 0, w, h); g.strokeStyle = '#fff'; g.lineWidth = 6;
+    for (let i = 0; i <= w; i += 16) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); }
+  });
+  meshTex.wrapS = meshTex.wrapT = THREE.RepeatWrapping; meshTex.repeat.set(110, 20);
+  const filt = mesh(new THREE.PlaneGeometry(8.3, 1.45), new THREE.MeshStandardMaterial({ color: 0x9fb6c8, alphaMap: meshTex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.6 }), IN, -0.1, 2.88, 0.9, false);
+  filt.rotation.x = -PI / 2;
+  regPart('filter', filt); setClipIn(filt);
+
+  // ---- 室内换热器：三折翅片管 ----
+  const tubes = [];
+  for (const s of ISEG) {
+    const A = new THREE.Vector2(...s.a), B = new THREE.Vector2(...s.b);
+    const d = B.clone().sub(A), len = d.length(); d.normalize();
+    const n = new THREE.Vector2(d.y, -d.x), cnt = Math.max(2, Math.round(len / 0.21));
+    Object.assign(s, { A, d, n, len });
+    for (let i = 0; i < cnt; i++) {
+      tubes.push(A.clone().addScaledVector(d, (i + 0.3) / cnt * len).addScaledVector(n, 0.075));
+      tubes.push(A.clone().addScaledVector(d, (i + 0.8) / cnt * len).addScaledVector(n, -0.075));
+    }
+  }
+  const XA = -4.0, XB = 3.55, ic = [];
+  tubes.forEach((t, j) => {
+    const a = V(j % 2 ? XB : XA, t.y, t.x), b = V(j % 2 ? XA : XB, t.y, t.x);
+    ic.push(new THREE.LineCurve3(a, b));
+    const n = tubes[j + 1]; if (!n) return;
+    ic.push(new UBend(b, V(b.x, n.y, n.x), V(j % 2 ? -1 : 1, 0, 0)));
+  });
+  inn.coilCurves = ic;
+  inn.coilStart = V(XA, tubes[0].y, tubes[0].x);
+  inn.coilEnd = V(XA, tubes[tubes.length - 1].y, tubes[tubes.length - 1].x);
+  const coilG = new THREE.Group(); IN.add(coilG);
+  const finWinList = [];
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = V(1, 1, 1);
+  for (const s of ISEG) {
+    const g = box(0.008, s.len + 0.06, 0.32);
+    const mid = s.A.clone().addScaledVector(s.d, s.len / 2);
+    q.setFromAxisAngle(V(1, 0, 0), Math.atan2(s.d.x, s.d.y));
+    const all = [], win = [];
+    for (let x = XA + 0.03; x < XB; x += 0.045) (x < -2.25 ? win : all).push({ p: V(x, mid.y, mid.x), q: q.clone() });
+    const mk = list => {
+      const im = new THREE.InstancedMesh(g, MAT.finIn, list.length);
+      list.forEach((e, i) => { m4.compose(e.p, e.q, one); im.setMatrixAt(i, m4); });
+      im.castShadow = true; coilG.add(im); return im;
+    };
+    mk(all); finWinList.push({ mesh: mk(win), list: win });
+    for (const x of [XA - 0.02, XB + 0.02]) { const sh = mesh(box(0.025, s.len + 0.08, 0.34), MAT.galv, coilG, x, mid.y, mid.x); sh.quaternion.copy(q); }
+  }
+  inn.finWins = finWinList;
+  regPart('icoil', coilG);
+
+  // ---- 贯流风扇 ----
+  const cf = new THREE.Group(); cf.position.set((IFAN.x0 + IFAN.x1) / 2, IFAN.y, IFAN.z); IN.add(cf);
+  const flen = IFAN.x1 - IFAN.x0, parts = [];
+  const bladeZY = []; for (let i = 0; i <= 6; i++) { const t = i / 6, r = lerp(0.38, 0.5, t), a = 0.42 * t * t; bladeZY.push([r * Math.cos(a), r * Math.sin(a)]); }
+  const bl = profileGeo(bladeZY, flen, { thick: 0.018 });
+  for (let i = 0; i < 34; i++) parts.push(bl.clone().rotateX(i / 34 * PI * 2));
+  for (let i = 0; i <= 10; i++) {
+    const d = lathe([[0.3, -0.012], [0.51, -0.012], [0.51, 0.012], [0.3, 0.012], [0.3, -0.012]], 40); d.rotateZ(-PI / 2); d.translate(-flen / 2 + i * flen / 10, 0, 0);
+    parts.push(d.toNonIndexed ? d.index ? d.toNonIndexed() : d : d);
+  }
+  const partsNI = parts.map(g => { const n = g.index ? g.toNonIndexed() : g; ['uv', 'uv1', 'uv2'].forEach(a => n.deleteAttribute(a)); n.computeVertexNormals(); return n; });
+  inn.cfan = mesh(mergeGeometries(partsNI), MAT.crossFan, cf);
+  const shaft = mesh(cyl(0.05, 0.05, flen + 0.5, 12), MAT.steel, cf); shaft.rotation.z = PI / 2;
+  const mot = mesh(cyl(0.28, 0.28, 0.5, 28), MAT.black, IN, 3.85, IFAN.y, IFAN.z); mot.rotation.z = PI / 2;
+  regPart('cfan', cf); regPart('cfan', mot);
+
+  // ---- 导风板 + 竖摆叶 ----
+  const lv = new THREE.Group(); lv.position.set(0, 0.45, 1.72); IN.add(lv);
+  const lvZY = []; for (let i = 0; i <= 10; i++) { const t = i / 10, z = lerp(-0.42, 0.42, t); lvZY.push([z, -0.06 * Math.sin(PI * t)]); }
+  mesh(profileGeo(lvZY, 8.1, { thick: 0.03, smooth: 20 }), MAT.plastic, lv, -0.15);
+  inn.louver = lv;
+  const vaneG = box(0.02, 0.28, 0.32);
+  inn.vanes = new THREE.InstancedMesh(vaneG, MAT.plasticGray, 16); IN.add(inn.vanes);
+  inn.vaneX = []; for (let i = 0; i < 16; i++) inn.vaneX.push(-3.6 + i * 7.1 / 15);
+  regPart('louver', lv); regPart('louver', inn.vanes);
+}
+function shapeGeoRR(w, h, r) { return new THREE.ShapeGeometry(shapeRR(-w / 2, -h / 2, w / 2, h / 2, r)); }
+
+scene.updateMatrixWorld(true);
+const OW = (x, y, z) => OUT.localToWorld(V(x, y, z));
+const IW = (x, y, z) => IN.localToWorld(V(x, y, z));
+
+// =====================================================================
+//  制冷剂管网（按"制冷方向"建模；制热时由 uniform 反转流向）
+// =====================================================================
+{
+  // 压缩机内部（仅示踪用）与四通阀 / 膨胀阀内部通路
+  addSeg('comp', bentPath([V(3.15, 1.0, -0.3), V(2.6, 1.0, -0.3), V(2.6, 2.9, -0.3)], 0.2), OUT, 0, false);
+  addSeg('dis', bentPath([V(2.6, 2.86, -0.3), V(2.6, 3.22, -0.3), V(2.6, 3.22, 0.45), V(2.85, 3.22, 0.45), V(2.85, 3.57, 0.45)], 0.1), OUT, 0.055);
+  addSeg('v_dc', bentPath([V(2.85, 3.57, 0.45), V(2.85, 3.7, 0.45), V(2.6, 3.7, 0.45), V(2.6, 3.83, 0.45)], 0.06), OUT, 0, false);
+  addSeg('v_de', bentPath([V(2.85, 3.57, 0.45), V(2.85, 3.7, 0.45), V(3.1, 3.7, 0.45), V(3.1, 3.83, 0.45)], 0.06), OUT, 0, false);
+  addSeg('v_es', bentPath([V(3.1, 3.83, 0.45), V(3.1, 3.76, 0.45), V(2.85, 3.76, 0.45), V(2.85, 3.83, 0.45)], 0.03), OUT, 0, false);
+  addSeg('v_cs', bentPath([V(2.6, 3.83, 0.45), V(2.6, 3.76, 0.45), V(2.85, 3.76, 0.45), V(2.85, 3.83, 0.45)], 0.03), OUT, 0, false);
+  const s0 = out.coilStart, s1 = out.coilEnd;
+  addSeg('vc', bentPath([V(2.6, 3.83, 0.45), V(2.6, 4.2, 0.45), V(1.72, 4.2, 0.45), V(1.72, 4.2, s0.z), V(1.72, s0.y, s0.z), s0.clone()], 0.14), OUT, 0.06);
+  addSeg('ocoil', out.coilCurves, OUT, 0.05);
+  addSeg('oeev', bentPath([s1.clone(), V(1.72, s1.y, s1.z), V(1.72, s1.y, 1.05), V(1.72, 1.85, 1.05), V(2.1, 1.85, 1.05)], 0.14), OUT, 0.04);
+  addSeg('eevx', bentPath([V(2.1, 1.85, 1.05), V(2.2, 1.85, 1.05), V(2.2, 1.64, 1.05)], 0.05), OUT, 0, false);
+  addSeg('eevsv', bentPath([V(2.2, 1.64, 1.05), V(2.2, 0.9, 1.05), V(4.3, 0.9, 1.05)], 0.14), OUT, 0.04);
+  addSeg('vg', bentPath([V(4.3, 1.5, 1.05), V(3.72, 1.5, 1.05), V(3.72, 4.02, 1.05), V(3.72, 4.02, 0.45), V(3.1, 4.02, 0.45), V(3.1, 3.83, 0.45)], 0.14), OUT, 0.06);
+  addSeg('suc', bentPath([V(2.85, 3.83, 0.45), V(2.85, 4.4, 0.45), V(2.85, 4.4, -0.3), V(3.55, 4.4, -0.3), V(3.55, 2.94, -0.3)], 0.14), OUT, 0.06);
+  addSeg('acc', bentPath([V(3.55, 1.52, -0.3), V(3.55, 1.0, -0.3), V(3.15, 1.0, -0.3)], 0.18), OUT, 0.06);
+  // 端口短管（四通阀 / 压缩机）
+  for (const x of [2.6, 2.85, 3.1]) mesh(cyl(0.065, 0.065, 0.12, 16), MAT.copper, OUT, x, 3.85, 0.45);
+  mesh(cyl(0.07, 0.07, 0.1, 16), MAT.copper, OUT, 2.85, 3.55, 0.45);
+  const mf = mesh(cyl(0.1, 0.1, 0.34, 20), MAT.copper, OUT, 2.6, 3.22, 0.07); mf.rotation.x = PI / 2;
+  regPart('comp', mf);
+
+  // 室内机内部 + 连接管（世界坐标）
+  const ci = inn.coilStart, ce = inn.coilEnd;
+  const liqPts = [OW(4.3, 0.9, 1.05), V(-1.5, -5.8, 5.05), V(-1.5, -5.8, 1.62), V(-1.5, 7.2, 1.62), V(1.45, 7.2, 1.62), IW(-4.18, 0.2, 0.25), IW(-4.18, 0.2, ci.x ? ci.z : ci.z), IW(-4.18, ci.y, ci.z), IW(ci.x, ci.y, ci.z)];
+  addSeg('liq', bentPath(liqPts, 0.3), scene, 0.05, true, 'liq');
+  addSeg('icoil', inn.coilCurves, IN, 0.042);
+  const gasPts = [IW(ce.x, ce.y, ce.z), IW(-4.33, ce.y, ce.z), IW(-4.33, 0.42, ce.z), IW(-4.33, 0.42, 0.3), V(1.5, 7.42, 1.88), V(-1.5, 7.42, 1.88), V(-1.5, -5.2, 1.88), V(-1.5, -5.2, 5.05), OW(4.3, 1.5, 1.05)];
+  addSeg('gas', bentPath(gasPts, 0.3), scene, 0.075, true, 'gas');
+  // 保温棉
+  const insL = mesh(tubeGeo(bentPath([V(-1.78, -5.8, 5.05), V(-1.5, -5.8, 5.05), V(-1.5, -5.8, 1.62), V(-1.5, 7.2, 1.62), V(1.45, 7.2, 1.62), V(1.45, 7.2, 1.3)], 0.3), 0.14, 18), MAT.insul, scene, 0, 0, 0, false);
+  const insG = mesh(tubeGeo(bentPath([V(1.5, 7.42, 1.35), V(1.5, 7.42, 1.88), V(-1.5, 7.42, 1.88), V(-1.5, -5.2, 1.88), V(-1.5, -5.2, 5.05), V(-1.8, -5.2, 5.05)], 0.3), 0.17, 18), MAT.insul, scene, 0, 0, 0, false);
+  regPart('liq', insL); regPart('gas', insG);
+  // 排水管（波纹）、电缆、管卡
+  const hose = bentPath([IW(-4.28, 0.9, 1.9), IW(-4.28, 0.9, 0.5), IW(-4.28, 0.12, 0.35), V(1.55, 7.05, 1.75), V(-1.8, 6.95, 1.75), V(-1.8, -6.3, 1.75)], 0.35);
+  inn.hoseEnd = V(-1.8, -6.3, 1.75);
+  regPart('hose', mesh(tubeGeo(hose, 0.09, 12, { rfn: l => 0.085 + 0.012 * Math.sin(l * 42), step: 0.035 }), MAT.hose, scene));
+  mesh(tubeGeo(bentPath([IW(-4.3, 0.6, 0.2), V(1.4, 7.56, 1.62), V(-1.34, 7.56, 1.62), V(-1.34, -2.8, 1.75), V(-1.34, -3.3, 2.6), OW(4.0, 3.4, -0.6), OW(3.9, 3.4, -0.6)], 0.3), 0.03, 6), MAT.cable, scene);
+  for (const y of [4.3, 0.8, -2.7]) {
+    const c = mesh(new THREE.TorusGeometry(0.42, 0.022, 6, 28, PI), MAT.steel, scene, -1.2, y, 1.75); c.rotation.set(PI / 2, 0, PI / 2);
+    for (const dz of [-0.47, 0.47]) mesh(cyl(0.035, 0.035, 0.08, 8), MAT.steel, scene, -1.24, y, 1.75 + dz).rotation.z = PI / 2;
+  }
+}
+
+// ---------------------------------------------------------------------
+//  循环顺序（两种模式）：[管段, 反向?, φ起, φ止, 时长s]
+// ---------------------------------------------------------------------
+const ORDER = {
+  cool: [['comp', 0, 0, 1, 2.8], ['dis', 0, 1, 1.01, 0.9], ['v_dc', 0, 1.01, 1.012, 0.35], ['vc', 0, 1.012, 1.04, 1.1], ['ocoil', 0, 1.04, 1.96, 11],
+    ['oeev', 0, 1.96, 2, 1.2], ['eevx', 0, 2, 3, 1.8], ['eevsv', 0, 3, 3.01, 0.9], ['liq', 0, 3.01, 3.05, 4.5], ['icoil', 0, 3.05, 3.95, 11],
+    ['gas', 0, 3.95, 3.97, 4.5], ['vg', 0, 3.97, 3.975, 0.9], ['v_es', 0, 3.975, 3.98, 0.35], ['suc', 0, 3.98, 3.99, 0.9], ['acc', 0, 3.99, 4, 0.8]],
+  heat: [['comp', 0, 0, 1, 2.8], ['dis', 0, 1, 1.01, 0.9], ['v_de', 0, 1.01, 1.012, 0.35], ['vg', 1, 1.012, 1.02, 0.9], ['gas', 1, 1.02, 1.05, 4.5],
+    ['icoil', 1, 1.05, 1.95, 11], ['liq', 1, 1.95, 1.99, 4.5], ['eevsv', 1, 1.99, 2, 0.9], ['eevx', 1, 2, 3, 1.8], ['oeev', 1, 3, 3.02, 1.2],
+    ['ocoil', 1, 3.02, 3.95, 11], ['vc', 1, 3.95, 3.975, 1.1], ['v_cs', 0, 3.975, 3.98, 0.35], ['suc', 0, 3.98, 3.99, 0.9], ['acc', 0, 3.99, 4, 0.8]],
+};
+for (const m in ORDER) { let t = 0; ORDER[m].forEach(e => { e.t0 = t; t += e[4]; }); ORDER[m].total = t; }
+function applyFlowTable(m) {
+  for (const [name, rev, p0, p1] of ORDER[m]) {
+    const id = SEG[name].id;
+    RU.uPhi0.value[id] = rev ? p1 : p0; RU.uPhi1.value[id] = rev ? p0 : p1; RU.uDir.value[id] = rev ? -1 : 1;
+  }
+}
+applyFlowTable('cool');
+
+// ---------------------------------------------------------------------
+//  热力学模型（R32 近似饱和表）与 lg p–h 图
+// ---------------------------------------------------------------------
+const SAT = [[-40, 0.177, 137, 497], [-30, 0.273, 158, 502], [-20, 0.406, 172, 507], [-10, 0.582, 186, 511], [0, 0.813, 200, 515], [10, 1.107, 214, 517],
+  [20, 1.474, 229, 518], [30, 1.927, 245, 517], [40, 2.478, 262, 513], [50, 3.14, 280, 506], [60, 3.927, 300, 495], [70, 4.859, 324, 475], [75, 5.4, 342, 456], [77, 5.62, 358, 438], [78.1, 5.78, 398, 398]];
+function satAt(P, col) {
+  const lp = Math.log(P);
+  for (let i = 0; i < SAT.length - 1; i++) {
+    const a = SAT[i], b = SAT[i + 1];
+    if (P <= b[1] || i === SAT.length - 2) { const t = clamp((lp - Math.log(a[1])) / (Math.log(b[1]) - Math.log(a[1])), 0, 1); return lerp(a[col], b[col], t); }
+  }
+}
+const satT = P => satAt(P, 0), satHl = P => satAt(P, 2), satHv = P => satAt(P, 3);
+const CYC = {
+  cool: { PL: 1.01, PH: 2.79, TL: 7, TH: 45, sh: 5, sc: 4, h1: 522, h2: 576, h3: 264, Tdis: 79, inA: 27, inB: 14, outA: 35, outB: 44, freq: 62, cap: 3.5, pow: 0.95 },
+  heat: { PL: 0.76, PH: 3.07, TL: -2, TH: 49, sh: 4, sc: 5, h1: 519, h2: 590, h3: 268, Tdis: 85, inA: 18, inB: 42, outA: 7, outB: 1, freq: 74, cap: 4.3, pow: 1.18 },
+};
+const CY = Object.assign({}, CYC.cool);
+function stateAt(phi, c) {
+  phi = ((phi % 4) + 4) % 4;
+  const lg = Math.log10; let h, P, T, x = null, ph;
+  const hvH = satHv(c.PH), hlH = satHl(c.PH), hvL = satHv(c.PL), hlL = satHl(c.PL);
+  if (phi < 1) { h = lerp(c.h1, c.h2, phi); P = 10 ** lerp(lg(c.PL), lg(c.PH), phi); T = lerp(c.TL + c.sh, c.Tdis, phi); ph = '过热蒸气 · 压缩中'; }
+  else if (phi < 2) {
+    h = lerp(c.h2, c.h3, phi - 1); P = c.PH;
+    if (h > hvH) { T = c.TH + (c.Tdis - c.TH) * (h - hvH) / (c.h2 - hvH); ph = '过热蒸气 · 放热降温'; }
+    else if (h > hlH) { T = c.TH; x = (h - hlH) / (hvH - hlH); ph = '气液两相 · 冷凝'; }
+    else { T = c.TH - c.sc * (hlH - h) / Math.max(1, hlH - c.h3); ph = '过冷液体'; }
+  } else if (phi < 3) {
+    const u = phi - 2; h = c.h3; P = 10 ** lerp(lg(c.PH), lg(c.PL), u);
+    const hl = satHl(P), hv = satHv(P);
+    if (h <= hl) { T = c.TH - c.sc; ph = '过冷液体 · 节流'; }
+    else { T = satT(P); x = (h - hl) / (hv - hl); ph = '气液两相 · 闪发降温'; }
+  } else {
+    h = lerp(c.h3, c.h1, phi - 3); P = c.PL;
+    if (h < hvL) { T = c.TL; x = (h - hlL) / (hvL - hlL); ph = '气液两相 · 蒸发'; }
+    else { T = c.TL + c.sh * (h - hvL) / Math.max(1, c.h1 - hvL); ph = '过热蒸气'; }
+  }
+  return { h, P, T, x, ph };
+}
+const phCv = document.getElementById('phc'), phCtx = phCv.getContext('2d');
+function sizePH() { const r = phCv.getBoundingClientRect(), d = Math.min(devicePixelRatio, 2); phCv.width = Math.max(10, r.width * d); phCv.height = Math.max(10, r.height * d); phCtx.setTransform(d, 0, 0, d, 0, 0); }
+function drawPH(phi) {
+  const W = phCv.width / Math.min(devicePixelRatio, 2), H = phCv.height / Math.min(devicePixelRatio, 2), c = phCtx;
+  if (W < 20) return;
+  c.clearRect(0, 0, W, H);
+  const L = 36, R = 10, T = 10, B = 24, pw = W - L - R, phh = H - T - B;
+  const hx = h => L + (h - 140) / (620 - 140) * pw;
+  const py = P => T + (1 - (Math.log10(P) - Math.log10(0.3)) / (Math.log10(7) - Math.log10(0.3))) * phh;
+  c.font = '10px sans-serif'; c.lineWidth = 1;
+  c.strokeStyle = 'rgba(140,170,230,.10)'; c.fillStyle = 'rgba(160,180,220,.55)';
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (const P of [0.5, 1, 2, 3, 5]) { c.beginPath(); c.moveTo(L, py(P)); c.lineTo(W - R, py(P)); c.stroke(); c.fillText(P, L - 4, py(P)); }
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  for (const h of [200, 300, 400, 500, 600]) { c.beginPath(); c.moveTo(hx(h), T); c.lineTo(hx(h), T + phh); c.stroke(); c.fillText(h, hx(h), T + phh + 3); }
+  c.textAlign = 'right'; c.fillText('h / kJ·kg⁻¹', W - R - 2, T + 2); c.textAlign = 'center'; c.save(); c.translate(9, T + phh / 2); c.rotate(-PI / 2); c.fillText('p / MPa', 0, -4); c.restore();
+  // 饱和曲线
+  c.beginPath(); SAT.forEach((s, i) => i ? c.lineTo(hx(s[2]), py(s[1])) : c.moveTo(hx(s[2]), py(s[1])));
+  for (let i = SAT.length - 1; i >= 0; i--) c.lineTo(hx(SAT[i][3]), py(SAT[i][1]));
+  c.fillStyle = 'rgba(80,130,255,.10)'; c.fill(); c.strokeStyle = 'rgba(170,195,255,.55)'; c.lineWidth = 1.2; c.stroke();
+  c.fillStyle = 'rgba(170,190,230,.5)'; c.font = '10px sans-serif'; c.textAlign = 'center';
+  c.fillText('液', hx(170), py(1.6)); c.fillText('两相区', hx(380), py(0.42)); c.fillText('过热气', hx(585), py(0.42));
+  // 循环
+  const p1 = [hx(CY.h1), py(CY.PL)], p2 = [hx(CY.h2), py(CY.PH)], p3 = [hx(CY.h3), py(CY.PH)], p4 = [hx(CY.h3), py(CY.PL)];
+  const edge = (a, b, col, ctrl) => { c.beginPath(); c.moveTo(...a); ctrl ? c.quadraticCurveTo(...ctrl, ...b) : c.lineTo(...b); c.strokeStyle = col; c.lineWidth = 2.2; c.stroke(); };
+  const cm = [lerp(p1[0], p2[0], 0.3), lerp(p1[1], p2[1], 0.62)];
+  edge(p1, p2, '#ff453a', cm); edge(p2, p3, '#ff9f0a'); edge(p3, p4, '#8f8cff'); edge(p4, p1, '#32d0ff');
+  c.font = 'bold 10px sans-serif'; c.fillStyle = '#e8eefc';
+  [[p1, '1', 6, 10], [p2, '2', 7, -8], [p3, '3', -8, -8], [p4, '4', -8, 10]].forEach(([p, t, dx, dy]) => { c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, p[0] + dx, p[1] + dy); });
+  // 当前状态点
+  const st = stateAt(phi, CY);
+  let x = hx(st.h), y = py(st.P);
+  if (phi % 4 < 1) { const u = phi % 4; x = (1 - u) ** 2 * p1[0] + 2 * (1 - u) * u * cm[0] + u * u * p2[0]; y = (1 - u) ** 2 * p1[1] + 2 * (1 - u) * u * cm[1] + u * u * p2[1]; }
+  const col = '#' + phiColorHex(phi).clone().convertLinearToSRGB().getHexString();
+  const gr = c.createRadialGradient(x, y, 0, x, y, 12); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gr; c.beginPath(); c.arc(x, y, 12, 0, PI * 2); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, 3.2, 0, PI * 2); c.fill();
+  return st;
+}
+
+// =====================================================================
+//  空气粒子（室内 / 室外）
+// =====================================================================
+const TSTOPS = [[0, '#1f5bff'], [8, '#2f86ff'], [14, '#45c3ff'], [20, '#bfe6ff'], [24, '#f2efe6'], [29, '#ffc978'], [37, '#ff8a3d'], [46, '#ff3b2f']];
+const TCOL = TSTOPS.map(([t, h]) => [t, new THREE.Color(h)]);
+function tempColor(T, o) {
+  if (T <= TCOL[0][0]) return o.copy(TCOL[0][1]);
+  for (let i = 0; i < TCOL.length - 1; i++) if (T <= TCOL[i + 1][0]) return o.copy(TCOL[i][1]).lerp(TCOL[i + 1][1], (T - TCOL[i][0]) / (TCOL[i + 1][0] - TCOL[i][0]));
+  return o.copy(TCOL[TCOL.length - 1][1]);
+}
+const airUni = { uScale: { value: 1 } };
+const airMat = new THREE.ShaderMaterial({
+  uniforms: airUni, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `attribute vec3 aColor; attribute float aAlpha; attribute float aSize; uniform float uScale; varying vec3 vC; varying float vA;
+    void main(){ vC=aColor; vA=aAlpha; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=clamp(aSize*uScale/-mv.z,1.0,40.0); gl_Position=projectionMatrix*mv; }`,
+  fragmentShader: `varying vec3 vC; varying float vA; void main(){ vec2 d=gl_PointCoord-0.5; float r=dot(d,d)*4.0; if(r>1.0) discard; float a=exp(-r*3.2)*vA; gl_FragColor=vec4(vC*a*1.25,a); }`,
+});
+const trailMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `attribute vec3 aColor; attribute float aAlpha; varying vec3 vC; varying float vA; void main(){ vC=aColor; vA=aAlpha; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `varying vec3 vC; varying float vA; void main(){ gl_FragColor=vec4(vC*vA,vA); }`,
+});
+function makeAir(n, parent, size) {
+  const g = new THREE.BufferGeometry(), A = { n };
+  A.pos = new Float32Array(n * 3); A.col = new Float32Array(n * 3); A.al = new Float32Array(n);
+  g.setAttribute('position', new THREE.BufferAttribute(A.pos, 3)); g.setAttribute('aColor', new THREE.BufferAttribute(A.col, 3));
+  g.setAttribute('aAlpha', new THREE.BufferAttribute(A.al, 1)); g.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(n).fill(size), 1));
+  A.pts = new THREE.Points(g, airMat); A.pts.frustumCulled = false; parent.add(A.pts); A.g = g;
+  const tg = new THREE.BufferGeometry(); A.tp = new Float32Array(n * 6); A.tc = new Float32Array(n * 6); A.ta = new Float32Array(n * 2);
+  tg.setAttribute('position', new THREE.BufferAttribute(A.tp, 3)); tg.setAttribute('aColor', new THREE.BufferAttribute(A.tc, 3)); tg.setAttribute('aAlpha', new THREE.BufferAttribute(A.ta, 1));
+  A.lines = new THREE.LineSegments(tg, trailMat); A.lines.frustumCulled = false; parent.add(A.lines); A.tg = tg;
+  A.vel = new Float32Array(n * 3); A.old = new Float32Array(n * 3); A.ph = new Uint8Array(n); A.sub = new Uint8Array(n);
+  A.age = new Float32Array(n); A.life = new Float32Array(n); A.T = new Float32Array(n); A.u = new Float32Array(n); A.aux = new Float32Array(n * 4);
+  A.curve = new Array(n);
+  return A;
+}
+function finishAir(A, dt) {
+  const c = new THREE.Color();
+  for (let i = 0; i < A.n; i++) {
+    const i3 = i * 3, i6 = i * 6;
+    tempColor(A.T[i], c);
+    A.col[i3] = c.r; A.col[i3 + 1] = c.g; A.col[i3 + 2] = c.b;
+    const k = dt > 0 ? 0.09 / dt : 0;
+    A.tp[i6] = A.pos[i3]; A.tp[i6 + 1] = A.pos[i3 + 1]; A.tp[i6 + 2] = A.pos[i3 + 2];
+    A.tp[i6 + 3] = A.pos[i3] - (A.pos[i3] - A.old[i3]) * k; A.tp[i6 + 4] = A.pos[i3 + 1] - (A.pos[i3 + 1] - A.old[i3 + 1]) * k; A.tp[i6 + 5] = A.pos[i3 + 2] - (A.pos[i3 + 2] - A.old[i3 + 2]) * k;
+    const dx = A.tp[i6] - A.tp[i6 + 3], dy = A.tp[i6 + 1] - A.tp[i6 + 4], dz = A.tp[i6 + 2] - A.tp[i6 + 5];
+    if (dx * dx + dy * dy + dz * dz > 1.5) { A.tp[i6 + 3] = A.tp[i6]; A.tp[i6 + 4] = A.tp[i6 + 1]; A.tp[i6 + 5] = A.tp[i6 + 2]; }
+    A.tc[i6] = c.r; A.tc[i6 + 1] = c.g; A.tc[i6 + 2] = c.b; A.tc[i6 + 3] = c.r; A.tc[i6 + 4] = c.g; A.tc[i6 + 5] = c.b;
+    A.ta[i * 2] = A.al[i] * 0.7; A.ta[i * 2 + 1] = 0;
+  }
+  A.g.attributes.position.needsUpdate = A.g.attributes.aColor.needsUpdate = A.g.attributes.aAlpha.needsUpdate = true;
+  A.tg.attributes.position.needsUpdate = A.tg.attributes.aColor.needsUpdate = A.tg.attributes.aAlpha.needsUpdate = true;
+}
+// --- 室内气流：房间 → 顶部格栅 → 过滤网 → 换热器 → 贯流风扇 → 出风口 → 房间 ---
+const IFLOOR = -13.9;
+const inLanes = [];
+for (let l = 0; l < 9; l++) {
+  const e = lerp(0.32, 1.52, l / 8), useR = e < 0.95;
+  const s = useR ? ISEG[2] : ISEG[1];
+  const t = useR ? lerp(0.12, 0.62, (e - 0.32) / 0.63) : lerp(0.25, 0.8, (1.52 - e) / 0.57);
+  const cp = s.A.clone().addScaledVector(s.d, t * s.len);
+  const co = cp.clone().addScaledVector(s.n, 0.22), cin = cp.clone().addScaledVector(s.n, -0.22);
+  const pts = [[e, 3.08], [e, 2.86], [co.x, co.y], [cin.x, cin.y], [lerp(0.95, 1.2, l / 8), 1.72], [1.02, 1.12], [1.32, 0.72], [1.58, 0.5], [1.74, 0.38]];
+  const cv = new THREE.CatmullRomCurve3(pts.map(([z, y]) => V(0, y, z)), false, 'centripetal');
+  let best = 0, bd = 9; for (let k = 0; k <= 200; k++) { const p = cv.getPointAt(k / 200); const d = Math.hypot(p.z - cp.x, p.y - cp.y); if (d < bd) { bd = d; best = k / 200; } }
+  inLanes.push({ cv, len: cv.getLength(), uc: best, e });
+}
+const airIn = makeAir(1200, IN, 0.1);
+function inSpawn(A, i, anywhere) {
+  const i3 = i * 3;
+  A.pos[i3] = rand(-4.5, 4.2); A.pos[i3 + 1] = anywhere ? rand(IFLOOR + 0.3, 2.5) : rand(IFLOOR + 0.5, 0); A.pos[i3 + 2] = rand(2.6, 12);
+  A.vel.fill(0, i3, i3 + 3); A.ph[i] = 0; A.sub[i] = 0; A.age[i] = 0; A.T[i] = CY.inA; A.aux[i * 4] = Math.random();
+}
+function inStep(A, i, dt) {
+  const i3 = i * 3; let x = A.pos[i3], y = A.pos[i3 + 1], z = A.pos[i3 + 2];
+  A.old[i3] = x; A.old[i3 + 1] = y; A.old[i3 + 2] = z; A.age[i] += dt;
+  const ph = A.ph[i];
+  if (ph === 0) {
+    let vx = A.vel[i3], vy = A.vel[i3 + 1], vz = A.vel[i3 + 2], tx, ty, tz;
+    const lane = A.aux[i * 4], xt = clamp(x, -3.7, 3.4);
+    if (A.sub[i] === 0) { tx = x * 0.98; ty = y + 1.5; tz = Math.max(z - 0.4, 3.0); if (y > 3.0) A.sub[i] = 1; }
+    else if (A.sub[i] === 1) { tx = xt; ty = 3.9; tz = 2.4; if (y > 3.55 && z < 2.7) A.sub[i] = 2; }
+    else { tx = xt; ty = 3.0; tz = lerp(0.32, 1.52, lane); }
+    const dx = tx - x, dy = ty - y, dz = tz - z, d = Math.hypot(dx, dy, dz) + 1e-6;
+    const near = clamp(1 - Math.hypot(z - 1.2, y - 2.5) / 9, 0, 1), sp = lerp(0.55, 2.0, near * near) * (A.sub[i] === 2 ? 1.1 : 1);
+    const k = 1 - Math.exp(-dt * 1.8);
+    vx += (dx / d * sp - vx) * k; vy += (dy / d * sp - vy) * k; vz += (dz / d * sp - vz) * k;
+    vx += Math.sin(y * 0.6 + S.time * 0.5 + i) * 0.35 * dt; vz += Math.cos(x * 0.5 + S.time * 0.4 + i * 0.7) * 0.3 * dt;
+    x += vx * dt; y += vy * dt; z += vz * dt; if (z < 0.1) z = 0.1;
+    A.vel[i3] = vx; A.vel[i3 + 1] = vy; A.vel[i3 + 2] = vz;
+    A.T[i] += (CY.inA - A.T[i]) * (1 - Math.exp(-dt / 5));
+    A.al[i] = Math.min(1, A.age[i] / 0.8) * (0.1 + 0.6 * near * near);
+    if (A.sub[i] === 2 && y < 3.12 && z > 0.25 && z < 1.6) {
+      let bi = 0, bd = 9; inLanes.forEach((L, j) => { const dd = Math.abs(L.e - z); if (dd < bd) { bd = dd; bi = j; } });
+      A.ph[i] = 1; A.u[i] = 0; A.curve[i] = inLanes[bi]; A.aux[i * 4 + 1] = A.T[i]; A.pos[i3] = clamp(x, -3.75, 3.4);
+      return;
+    }
+  } else if (ph === 1) {
+    const Ln = A.curve[i]; A.u[i] += dt * 2.5 / Ln.len;
+    const u = A.u[i];
+    if (u >= 1) {
+      A.ph[i] = 2; A.age[i] = 0; A.life[i] = rand(3.2, 5.5);
+      const a = inn.louver.rotation.x, yaw = Math.sin(S.time * 0.5 + x * 0.3) * 0.35 * inn.swing;
+      const sp = rand(2.8, 3.8);
+      A.vel[i3] = Math.sin(yaw) * sp * 0.5 + x * 0.05; A.vel[i3 + 1] = -Math.sin(a) * sp; A.vel[i3 + 2] = Math.cos(a) * sp;
+      return;
+    }
+    const p = Ln.cv.getPointAt(u); y = p.y; z = p.z;
+    const t0 = Ln.uc - 0.03, t1 = Ln.uc + 0.05;
+    A.T[i] = u < t0 ? A.aux[i * 4 + 1] : lerp(A.aux[i * 4 + 1], CY.inB, clamp((u - t0) / (t1 - t0), 0, 1));
+    A.al[i] = 0.95;
+  } else {
+    let vx = A.vel[i3], vy = A.vel[i3 + 1], vz = A.vel[i3 + 2];
+    const drag = Math.exp(-dt * 0.42);
+    vx *= drag; vy *= drag; vz *= drag;
+    vy += (A.T[i] - CY.inA) * 0.05 * dt;
+    vx += Math.sin(z * 0.8 + S.time * 0.7 + i) * 0.25 * dt; vz += Math.cos(y * 0.7 + S.time * 0.6 + i) * 0.2 * dt;
+    x += vx * dt; y += vy * dt; z += vz * dt;
+    if (y < IFLOOR) { y = IFLOOR; vy = Math.abs(vy) * 0.05; vz += 0.4 * dt; }
+    if (z < 0.1) { z = 0.1; vz = Math.abs(vz); }
+    A.vel[i3] = vx; A.vel[i3 + 1] = vy; A.vel[i3 + 2] = vz;
+    A.T[i] += (CY.inA - A.T[i]) * (1 - Math.exp(-dt / 7));
+    A.al[i] = 0.95 * clamp(Math.hypot(vx, vy, vz) / 1.6, 0.12, 1) * (1 - 0.8 * clamp(A.age[i] / A.life[i], 0, 1));
+    if (A.age[i] > A.life[i] || z > 14) { A.ph[i] = 0; A.sub[i] = 0; A.age[i] = 1; if (z > 14) inSpawn(A, i, true); }
+  }
+  A.pos[i3] = x; A.pos[i3 + 1] = y; A.pos[i3 + 2] = z;
+}
+// --- 室外气流：后/侧吸入 → 穿过换热器 → 风扇 → 正面旋转吹出 ---
+const airOut = makeAir(1100, OUT, 0.11);
+function outSpawn(A, i) {
+  const i3 = i * 3, side = Math.random() < 0.62 ? 0 : 1, y = rand(0.55, 5.1);
+  A.aux[i * 4] = side; A.aux[i * 4 + 3] = y;
+  if (side === 0) { const x = rand(-3.0, 1.35); A.aux[i * 4 + 1] = x; A.pos[i3] = x + rand(-1.2, 1.2); A.pos[i3 + 1] = y + rand(-1, 1); A.pos[i3 + 2] = rand(-6.5, -2.6); }
+  else { const z = rand(-0.5, 1.05); A.aux[i * 4 + 2] = z; A.pos[i3] = rand(-9, -4.8); A.pos[i3 + 1] = y + rand(-1, 1); A.pos[i3 + 2] = z + rand(-1.2, 1.2); }
+  A.vel.fill(0, i3, i3 + 3); A.ph[i] = 0; A.age[i] = 0; A.T[i] = CY.outA;
+}
+function outStep(A, i, dt) {
+  const i3 = i * 3; let x = A.pos[i3], y = A.pos[i3 + 1], z = A.pos[i3 + 2];
+  A.old[i3] = x; A.old[i3 + 1] = y; A.old[i3 + 2] = z; A.age[i] += dt;
+  const ph = A.ph[i], side = A.aux[i * 4];
+  if (ph === 0) {
+    const ty = A.aux[i * 4 + 3];
+    const tx = side === 0 ? A.aux[i * 4 + 1] : -3.9, tz = side === 0 ? -1.4 : A.aux[i * 4 + 2];
+    const dx = tx - x, dy = ty - y, dz = tz - z, d = Math.hypot(dx, dy, dz) + 1e-6;
+    const sp = lerp(2.4, 0.8, clamp(d / 5, 0, 1)), k = 1 - Math.exp(-dt * 2.5);
+    let vx = A.vel[i3], vy = A.vel[i3 + 1], vz = A.vel[i3 + 2];
+    vx += (dx / d * sp - vx) * k; vy += (dy / d * sp - vy) * k; vz += (dz / d * sp - vz) * k;
+    x += vx * dt; y += vy * dt; z += vz * dt;
+    A.vel[i3] = vx; A.vel[i3 + 1] = vy; A.vel[i3 + 2] = vz;
+    A.T[i] = CY.outA; A.al[i] = Math.min(1, A.age[i] / 0.6) * 0.4;
+    if (d < 0.12) {
+      A.ph[i] = 1; A.u[i] = 0;
+      const r = rand(0.55, 1.85), th = rand(0, PI * 2);
+      const p0 = V(tx, ty, tz), p1 = side === 0 ? V(tx, ty, -0.78) : V(-3.3, ty, tz);
+      const f = V(-1.2 + r * Math.cos(th), 2.85 + r * Math.sin(th), 0.55);
+      const c = new THREE.QuadraticBezierCurve3(p1, p1.clone().lerp(f, 0.5).add(side === 0 ? V(0, 0, -0.3) : V(-0.3, 0, 0)), f);
+      A.curve[i] = { p0, p1, c, len: c.getLength() + 0.5, r, th };
+    }
+  } else if (ph === 1) {
+    const C = A.curve[i]; A.u[i] += dt * 2.2 / C.len;
+    const u = A.u[i], ub = 0.5 / C.len;
+    let p;
+    if (u < ub) { p = C.p0.clone().lerp(C.p1, u / ub); A.T[i] = lerp(CY.outA, CY.outB, u / ub); }
+    else p = C.c.getPoint(clamp((u - ub) / (1 - ub), 0, 1));
+    x = p.x; y = p.y; z = p.z; A.al[i] = 0.9;
+    if (u >= 1) {
+      A.ph[i] = 2; A.age[i] = 0; A.life[i] = rand(1.6, 2.6);
+      const th = C.th, r = C.r;
+      A.vel[i3] = -Math.sin(th) * 2.6 + Math.cos(th) * 0.35; A.vel[i3 + 1] = Math.cos(th) * 2.6 + Math.sin(th) * 0.35; A.vel[i3 + 2] = 4.4;
+      A.aux[i * 4 + 1] = r;
+    }
+  } else {
+    let vx = A.vel[i3], vy = A.vel[i3 + 1], vz = A.vel[i3 + 2];
+    const dr = Math.exp(-dt * 0.55); vx *= dr; vy *= dr; vz *= dr;
+    const rx = x + 1.2, ry = y - 2.85, rr = Math.hypot(rx, ry) + 1e-3;   // 旋流：向心加速度维持螺旋
+    const vt = (-ry * vx + rx * vy) / rr; vx += (-rx / rr) * vt * vt / rr * dt * 0.6; vy += (-ry / rr) * vt * vt / rr * dt * 0.6;
+    vy += (A.T[i] - CY.outA) * 0.03 * dt;
+    x += vx * dt; y += vy * dt; z += vz * dt;
+    A.vel[i3] = vx; A.vel[i3 + 1] = vy; A.vel[i3 + 2] = vz;
+    A.al[i] = 0.9 * (1 - clamp((A.age[i] - A.life[i] + 0.8) / 0.8, 0, 1));
+    if (A.age[i] > A.life[i]) outSpawn(A, i);
+  }
+  A.pos[i3] = x; A.pos[i3 + 1] = y; A.pos[i3 + 2] = z;
+}
+// --- 冷凝水滴（制冷时） ---
+const drops = new THREE.InstancedMesh(new THREE.SphereGeometry(0.022, 10, 8), MAT.water, 60); IN.add(drops);
+const dropS = Array.from({ length: 60 }, () => ({ x: 0, y: 0, z: 0, v: 0, t: Math.random() * 3, floor: 0 }));
+const drip = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 10, 8), MAT.water, 6); scene.add(drip);
+const dripS = Array.from({ length: 6 }, (_, i) => ({ y: 0, v: 0, t: i * 0.5 }));
+
+// =====================================================================
+//  示踪粒子（沿当前模式的制冷剂回路运动，与压焓图同步）
+// =====================================================================
+const tracer = new THREE.Group(); scene.add(tracer);
+const trCore = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+const trHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.3, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }),
+  blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+}));
+trHalo.scale.set(0.9, 0.9, 1);
+const trLight = new THREE.PointLight(0xffffff, 2.5, 3.5, 2);
+tracer.add(trCore, trHalo, trLight);
+trCore.userData.bloom = trHalo.userData.bloom = true;
+const TRN = 70, trPos = new Float32Array(TRN * 3), trA = new Float32Array(TRN), trC = new Float32Array(TRN * 3);
+const trGeo = new THREE.BufferGeometry();
+trGeo.setAttribute('position', new THREE.BufferAttribute(trPos, 3)); trGeo.setAttribute('aColor', new THREE.BufferAttribute(trC, 3)); trGeo.setAttribute('aAlpha', new THREE.BufferAttribute(trA, 1));
+const trTrail = new THREE.Line(trGeo, trailMat); trTrail.frustumCulled = false; trTrail.userData.bloom = true; scene.add(trTrail);
+const TR = { t: 0, phi: 0, pos: V(0, 0, 0), hist: [] };
+function tracerEval(t) {
+  const ord = ORDER[S.mode]; t = ((t % ord.total) + ord.total) % ord.total;
+  let e = ord[ord.length - 1]; for (const x of ord) if (t < x.t0 + x[4]) { e = x; break; }
+  const u = clamp((t - e.t0) / e[4], 0, 1), seg = SEG[e[0]];
+  const p = seg.path.getPointAt(e[1] ? 1 - u : u, new THREE.Vector3()).applyMatrix4(seg.parent.matrixWorld);
+  return { p, phi: lerp(e[2], e[3], u) };
+}
+function jumpTracerToPhi(phi) { for (const e of ORDER[S.mode]) if (e[2] >= phi - 1e-6) { TR.t = e.t0; TR.hist.length = 0; return; } }
+
+// =====================================================================
+//  热量流向示意（室内 ⇄ 室外）
+// =====================================================================
+const qCurve = new THREE.CatmullRomCurve3([V(3.4, 10.5, -1.6), V(1.0, 11.7, 0.4), V(-2.6, 11.0, 2.4), V(-5.6, 6.6, 3.8), V(-6.2, 1.6, 4.0)]);
+const qUni = { uTime: { value: 0 }, uDir: { value: 1 }, uA: { value: new THREE.Color(0x3fb6ff) }, uB: { value: new THREE.Color(0xff4a2a) }, uOp: { value: 1 } };
+const qMesh = new THREE.Mesh(new THREE.TubeGeometry(qCurve, 160, 0.2, 12, false), new THREE.ShaderMaterial({
+  uniforms: qUni, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `uniform float uTime,uDir,uOp; uniform vec3 uA,uB; varying vec2 vUv;
+    void main(){ float u=vUv.x; float s=u*16.0 - uDir*abs(fract(vUv.y*2.0)-0.5)*0.9 - uDir*uTime*0.9; float ch=fract(s);
+      float arr=smoothstep(0.0,0.12,ch)*(1.0-smoothstep(0.3,0.5,ch));
+      float fade=smoothstep(0.0,0.08,u)*(1.0-smoothstep(0.9,1.0,u));
+      vec3 col=mix(uA,uB,u); gl_FragColor=vec4(col*(0.12+arr*0.75)*fade*uOp,1.0); }`,
+}));
+qMesh.userData.bloom = true; scene.add(qMesh);
+const qLabel = makeLabel('热量 Q', '室内 → 室外', '#ff8a3d', 10, 'qlbl'); qLabel.position.copy(qCurve.getPointAt(0.4)); scene.add(qLabel);
+
+// =====================================================================
+//  标注
+// =====================================================================
+const LBL = {};
+function addLbl(key, text, sub, color, pos, h = 28, maxD = 0) { const o = makeLabel(text, sub, color, h); o.position.copy(pos); o.userData.maxD = maxD; o.userData.on = true; scene.add(o); LBL[key] = o; return o; }
+addLbl('comp', '压缩机', 'Compressor', '#ff453a', OW(2.1, 1.3, 0.2), 20);
+addLbl('fourway', '四通阀', '4-Way Valve', '#ffd166', OW(2.85, 4.15, 0.45), 30, 22);
+addLbl('eev', '电子膨胀阀', 'EEV', '#9d8cff', OW(2.2, 2.35, 1.05), 44, 22);
+addLbl('acc', '气液分离器', 'Accumulator', '#9fb4e0', OW(3.55, 2.95, -0.3), 96, 16);
+addLbl('ocoil', '冷凝器 · 放热', '室外换热器', '#ff9f0a', OW(-3.6, 5.3, -0.9), 36);
+addLbl('ofan', '轴流风扇', 'Axial Fan', '#9fb4e0', OW(-1.2, 4.9, 1.6), 30, 20);
+addLbl('valves', '截止阀', 'Service Valves', '#9fb4e0', OW(4.35, 1.65, 1.05), 26, 16);
+addLbl('ebox', '电控板', 'Inverter PCB', '#5fe0a8', OW(3.35, 5.1, 0.2), 26, 14);
+addLbl('icoil', '蒸发器 · 吸热', '室内换热器', '#32d0ff', IW(0.8, 3.0, 0.9), 40);
+addLbl('cfan', '贯流风扇', 'Cross-flow Fan', '#9fb4e0', IW(-2.4, 1.15, 1.55), 150, 20);
+addLbl('louver', '导风板', 'Louver', '#9fb4e0', IW(1.4, 0.3, 2.1), 22, 20);
+addLbl('liq', '液管（细）', 'Liquid Line', '#9fb4e0', V(-1.5, -1.0, 1.62), 26);
+addLbl('gas', '气管（粗）', 'Gas Line', '#9fb4e0', V(-1.5, 2.5, 1.88), 26);
+addLbl('drain', '冷凝水 → 排水管', 'Condensate', '#7fc8ff', inn.hoseEnd.clone().add(V(0, 0.2, 0)), 30, 26);
+
+// =====================================================================
+//  教学文案
+// =====================================================================
+const STEPS = {
+  cool: [
+    { n: '压缩', en: 'Compression', c: '#ff453a', wh: '压缩机 · 室外机', st: '低压蒸气 → 高温高压蒸气', view: 'compressor',
+      d: '压缩机吸入从室内回来的低温低压蒸气，电机带动滚动活塞把它压缩成约 80 °C、2.8 MPa 的高温高压气体。这是循环中唯一消耗电能做功的环节，为"搬运热量"提供动力。' },
+    { n: '冷凝', en: 'Condensation', c: '#ff9f0a', wh: '室外换热器 = 冷凝器', st: '高温蒸气 → 高压液体（放热）', view: 'outCoil',
+      d: '高温气体流入室外机 U 型铜管，轴流风扇抽动室外空气掠过铝翅片把热量带走；制冷剂在约 45 °C 下冷凝成液体。夏天室外机吹出的热风，就是从房间里搬出来的热量。' },
+    { n: '节流', en: 'Expansion', c: '#8f8cff', wh: '电子膨胀阀', st: '高压液体 → 低温气液混合物', view: 'eev',
+      d: '高压液体挤过针阀的微小开口，压力从 2.8 MPa 骤降到约 1.0 MPa，部分液体瞬间"闪发"汽化吸热，制冷剂温度随之降到约 7 °C，经细管送往室内机。' },
+    { n: '蒸发', en: 'Evaporation', c: '#32d0ff', wh: '室内换热器 = 蒸发器', st: '低温液体 → 低压蒸气（吸热）', view: 'inCoil',
+      d: '低温制冷剂在室内机翅片管中沸腾蒸发，吸走贯流风扇送来的室内空气的热量；空气降温并析出冷凝水（除湿），由导风板吹出冷风。蒸气经粗管回到压缩机，循环往复。' },
+  ],
+  heat: [
+    { n: '压缩', en: 'Compression', c: '#ff453a', wh: '压缩机 · 室外机', st: '低压蒸气 → 高温高压蒸气', view: 'compressor',
+      d: '压缩机的工作方式不变，吸入低压蒸气、压缩成约 85 °C、3.1 MPa 的排气。区别在于：四通阀已经换向，排气接下来不去室外机，而是经粗管送往室内机。' },
+    { n: '冷凝', en: 'Condensation', c: '#ff9f0a', wh: '室内换热器 = 冷凝器', st: '高温蒸气 → 高压液体（放热）', view: 'inCoil',
+      d: '高温气体在室内机翅片管中约 49 °C 冷凝放热，贯流风扇把热量吹进房间，导风板朝下送出热风（热空气会自然上升，使房间均匀变暖）。' },
+    { n: '节流', en: 'Expansion', c: '#8f8cff', wh: '电子膨胀阀', st: '高压液体 → 低温气液混合物', view: 'eev',
+      d: '高压液体经细管回到室外机，通过电子膨胀阀后压力骤降到约 0.76 MPa，温度降到约 −2 °C——比室外 7 °C 的空气还冷，这样才能从室外吸热。' },
+    { n: '蒸发', en: 'Evaporation', c: '#32d0ff', wh: '室外换热器 = 蒸发器', st: '低温液体 → 低压蒸气（吸热）', view: 'outCoil',
+      d: '比室外空气更冷的制冷剂在室外机盘管中蒸发，从寒冷的空气里"榨取"热量，所以制热时室外机吹出的是冷风。蒸气经四通阀、气液分离器回到压缩机。' },
+  ],
+};
+const CORE = {
+  cool: '<b>为什么能把热量从凉的房间搬到更热的室外？</b><br>关键是"压力改变沸点"：低压下制冷剂 7 °C 就能沸腾吸热，高压下要到 45 °C 才冷凝放热。压缩机消耗少量电能改变压力，就能搬运 3～5 倍于耗电量的热量——这就是右侧的 COP。',
+  heat: '<b>制热 = 把"搬运方向"反过来</b><br>四通阀让制冷剂反向流动：室外机当蒸发器从冷空气中吸热，室内机当冷凝器放热。所以空调制热比电暖器省电得多——每 1 度电能送进 3～4 度电当量的热。',
+};
+
+// =====================================================================
+//  界面
+// =====================================================================
+const $ = id => document.getElementById(id);
+const stepsEl = $('steps'); let stepNodes = [], activeStep = -1;
+function renderSteps() {
+  stepsEl.innerHTML = ''; stepNodes = [];
+  STEPS[S.mode].forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'step'; d.style.setProperty('--c', s.c);
+    d.innerHTML = `<div class="hd"><span class="no">0${i + 1}</span><span class="nm">${s.n}</span><span class="en">${s.en}</span></div><div class="wh">${s.wh}</div><div class="st">${s.st}</div><div class="ds">${s.d}</div>`;
+    d.onclick = () => { stopTour(); jumpTracerToPhi(i); setView(s.view); };
+    stepsEl.appendChild(d); stepNodes.push(d);
+  });
+  $('core').innerHTML = CORE[S.mode]; activeStep = -1;
+}
+function setActiveStep(i) { if (i === activeStep) return; activeStep = i; stepNodes.forEach((n, j) => n.classList.toggle('on', j === i)); }
+function toast(msg, ms = 1800) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), ms); }
+
+// ---- 相机视角 ----
+const VIEWS = {
+  overview: [V(23, 11, 30), V(-2.2, 1.5, 0.8)],
+  outdoor: [V(1.5, 4.0, 17.5), V(-6.0, -4.2, 3.8)],
+  compressor: [OW(2.6, 2.1, -0.3).add(V(4.0, 2.0, 6.4)), OW(2.6, 2.1, -0.3)],
+  fourway: [OW(2.85, 3.75, 0.45).add(V(1.3, 1.1, 2.4)), OW(2.85, 3.75, 0.45)],
+  eev: [OW(2.2, 1.9, 1.05).add(V(1.2, 0.8, 2.2)), OW(2.2, 1.9, 1.05)],
+  outCoil: [OW(-1.0, 3.0, -0.3).add(V(3.5, 8.0, 7.5)), OW(-1.0, 2.6, -0.4)],
+  outFan: [OW(-1.2, 2.85, 1).add(V(2.5, 1.5, 8.5)), OW(-1.2, 2.85, 1)],
+  pipes: [V(8.5, 9.0, 14.5), V(-0.6, 4.2, 1.7)],
+  indoor: [IW(0, 1.5, 1.1).add(V(10.5, 1.8, 6.5)), IW(0, 1.4, 1.1)],
+  inCoil: [IW(-2.3, 1.5, 1.2).add(V(2.6, 1.2, 5.6)), IW(-2.3, 1.5, 1.2)],
+};
+const cam = { t: 1 };
+function flyTo(pos, target, dur = 1.7) { Object.assign(cam, { p0: camera.position.clone(), q0: controls.target.clone(), p1: pos.clone(), q1: target.clone(), t: 0, dur }); }
+function setView(k, instant = false) {
+  const v = VIEWS[k]; if (!v) return;
+  if (['compressor', 'fourway', 'eev', 'inCoil', 'outCoil'].includes(k) && S.shellTarget === 0) setShell(1);
+  const f = Math.pow(clamp(1.55 / camera.aspect, 1, 2.4), 0.85);        // 竖屏/窄屏时自动拉远
+  const pos = v[1].clone().add(v[0].clone().sub(v[1]).multiplyScalar(f));
+  flyTo(pos, v[1], instant ? 0.001 : 1.7); $('viewSel').value = k;
+  if (S.follow) { S.follow = false; $('tFollow').checked = false; }
+}
+
+// ---- 模式切换 ----
+let pendingMode = null, switchT = 0;
+function setMode(m) {
+  if (m === S.mode && !pendingMode) return;
+  pendingMode = m; switchT = 0; S.flowTarget = 0;
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  toast(m === 'heat' ? '☀ 切换制热：四通阀换向，制冷剂反向流动…' : '❄ 切换制冷：四通阀复位，制冷剂恢复原方向…', 2200);
+}
+function applyMode(m) {
+  S.mode = m; const heat = m === 'heat';
+  applyFlowTable(m); TR.t = 0; TR.hist.length = 0;
+  document.body.classList.toggle('heat', heat);
+  $('logo').textContent = heat ? '☀' : '❄';
+  $('subtitle').textContent = heat ? '制热模式：从寒冷的室外"抽取"热量送进房间' : '制冷模式：把室内的热量"搬"到室外';
+  $('stepMode').textContent = heat ? '制热模式' : '制冷模式'; $('modeTag').textContent = heat ? '制热' : '制冷';
+  $('rCapL').textContent = heat ? '制热量 · 输入功率' : '制冷量 · 输入功率';
+  setLabel(LBL.ocoil, heat ? '蒸发器 · 吸热' : '冷凝器 · 放热', '室外换热器', heat ? '#32d0ff' : '#ff9f0a');
+  setLabel(LBL.icoil, heat ? '冷凝器 · 放热' : '蒸发器 · 吸热', '室内换热器', heat ? '#ff9f0a' : '#32d0ff');
+  setLabel(qLabel, '热量 Q', heat ? '室外 → 室内' : '室内 → 室外');
+  LBL.drain.userData.on = !heat;
+  renderSteps(); drawDisplay();
+}
+function drawDisplay() {
+  const c = inn.dispCanvas.getContext('2d'), heat = S.mode === 'heat';
+  c.clearRect(0, 0, 256, 96);
+  c.fillStyle = heat ? '#ff9a4a' : '#5ccfff'; c.font = 'bold 60px "Helvetica Neue",Arial'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(heat ? '30°' : '16°', 150, 50);
+  c.font = '42px sans-serif'; c.fillText(heat ? '☀' : '❄', 58, 50);
+  inn.dispTex.needsUpdate = true;
+}
+
+// ---- 外壳剖切 ----
+function setShell(v) { S.shellTarget = v; document.querySelectorAll('#shellSeg button').forEach(b => b.classList.toggle('on', +b.dataset.s === v)); }
+function applyShell(e) {
+  const fadePanel = (m, e2) => {
+    const mat = m.material, tr = e2 > 0.002;
+    if (mat.transparent !== tr) { mat.transparent = tr; mat.needsUpdate = true; }
+    mat.opacity = 1 - e2; m.visible = e2 < 0.985;
+  };
+  out.top.position.y = 5.47 + ease(e) * 3.2; fadePanel(out.top, e);
+  out.frontComp.position.z = 1.44 + ease(e) * 2.6; fadePanel(out.frontComp, e);
+  cutIn.constant = lerp(1.7, -1.0, ease(e));
+  cutComp.constant = OW(0, 0, -0.3).z + (1 - ease(e)) * 1.4;
+  cut4WV.constant = OW(0, 0, 0.45).z + (1 - ease(e)) * 0.6;
+  cutEEV.constant = OW(0, 0, 1.05).z + (1 - ease(e)) * 0.6;
+  // 翅片"开窗"：露出内部 U 型管
+  const m4 = new THREE.Matrix4(), s = V(1, 1, 1), p = V();
+  const fw = out.finWin, hs = lerp(1, fw.keep, ease(e));
+  fw.list.forEach((f, i) => { s.set(1, hs, 1); p.copy(f.p); p.y = fw.y0 + fw.h * hs / 2; m4.compose(p, f.q, s); fw.mesh.setMatrixAt(i, m4); });
+  fw.mesh.instanceMatrix.needsUpdate = true;
+  const hi = Math.max(0.001, 1 - ease(e));
+  inn.finWins.forEach(w => { w.list.forEach((f, i) => { s.set(1, hi, hi); m4.compose(f.p, f.q, s); w.mesh.setMatrixAt(i, m4); }); w.mesh.instanceMatrix.needsUpdate = true; w.mesh.visible = hi > 0.01; });
+}
+
+// ---- 导览 ----
+const TOUR = [
+  { v: 'overview', t: '空调并不"制造冷气"，而是一台<b>热量搬运机</b>：制冷剂在管路中循环，把室内的热量搬到室外。发光的颜色代表制冷剂状态，白色光点是一小团被"跟踪"的制冷剂。', d: 8 },
+  { v: 'compressor', s: 0, t: '① <b>压缩</b>：压缩机外壳已剖开——电机带动偏心轴，滚动活塞在气缸内公转，把低压蒸气压成高温高压气体（红色）。', d: 9 },
+  { v: 'fourway', t: '<b>四通阀</b>决定排气去向。制冷时滑块让排气通往室外换热器；切换到制热，滑块移动，排气改走室内机。', d: 8 },
+  { v: 'outCoil', s: 1, t: '② <b>冷凝</b>：高温气体在 L 形盘管中蛇形流动，轴流风扇从背面吸入空气带走热量，制冷剂由红变橙——冷凝成高压液体。', d: 9 },
+  { v: 'eev', s: 2, t: '③ <b>节流</b>：高压液体挤过电子膨胀阀的针阀小孔，压力骤降，部分闪发汽化，温度一下降到 7 °C 左右（蓝色）。', d: 8 },
+  { v: 'pipes', t: '细的<b>液管</b>和粗的<b>气管</b>包着保温棉穿过墙洞，连接内外机；旁边是把冷凝水排到室外的排水管。', d: 7 },
+  { v: 'inCoil', s: 3, t: '④ <b>蒸发</b>：低温制冷剂在室内三折换热器中沸腾吸热；贯流风扇把房间空气从顶部吸入，穿过冷盘管后由导风板吹出冷风。', d: 9 },
+  { v: 'indoor', t: '冷空气比较重，会自然下沉铺满房间；盘管表面凝结的水珠滴入接水盘，经排水管排走——所以空调也能除湿。', d: 8 },
+  { v: 'overview', t: '看右侧<b>压焓图</b>：1→2 压缩、2→3 冷凝、3→4 节流、4→1 蒸发。蒸发段吸收的热量是压缩耗功的 4～5 倍，这就是空调高效的秘密。试试切换到<b>制热</b>模式！', d: 10 },
+];
+let tour = null;
+function startTour() { if (S.mode !== 'cool' || pendingMode) setMode('cool'); tour = { i: -1, t: 0 }; $('tourBtn').classList.add('on'); $('tourBtn').textContent = '⏹ 结束导览'; setShell(1); nextTour(); }
+function nextTour() {
+  tour.i++; tour.t = 0;
+  if (tour.i >= TOUR.length) return stopTour();
+  const s = TOUR[tour.i]; setView(s.v); if (s.s !== undefined) jumpTracerToPhi(s.s);
+  const cap = $('caption'); cap.innerHTML = s.t + `<span class="cp">导览 ${tour.i + 1} / ${TOUR.length} · 拖动画面可随时退出</span>`; cap.classList.add('show');
+}
+function stopTour() { if (!tour) return; tour = null; $('caption').classList.remove('show'); $('tourBtn').classList.remove('on'); $('tourBtn').textContent = '🎬 自动导览'; }
+
+// ---- 控件绑定 ----
+document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+document.querySelectorAll('#shellSeg button').forEach(b => b.onclick = () => setShell(+b.dataset.s));
+const playBtn = $('playBtn');
+function togglePlay() { S.playing = !S.playing; playBtn.textContent = S.playing ? '⏸ 暂停' : '▶ 播放'; }
+playBtn.onclick = togglePlay;
+$('speed').oninput = e => S.speed = +e.target.value;
+$('tourBtn').onclick = () => tour ? stopTour() : startTour();
+$('viewSel').onchange = e => { stopTour(); setView(e.target.value); };
+$('tRef').onchange = e => { S.showRef = e.target.checked; };
+$('tAir').onchange = e => { S.showAir = e.target.checked; [airIn, airOut].forEach(A => { A.pts.visible = A.lines.visible = S.showAir; }); };
+$('tTracer').onchange = e => { S.showTracer = e.target.checked; };
+$('tFollow').onchange = e => { S.follow = e.target.checked; if (S.follow) { stopTour(); S.showTracer = true; $('tTracer').checked = true; } };
+$('tLbl').onchange = e => { document.body.classList.toggle('nolabels', !e.target.checked); qMesh.visible = e.target.checked; };
+$('mL').onclick = () => { document.body.classList.toggle('showL'); document.body.classList.remove('showR'); };
+$('mR').onclick = () => { document.body.classList.toggle('showR'); document.body.classList.remove('showL'); requestAnimationFrame(sizePH); };
+controls.addEventListener('start', () => { stopTour(); cam.t = 1; });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'm' || e.key === 'M') setMode(S.mode === 'cool' ? 'heat' : 'cool');
+  else if (e.key === 'c' || e.key === 'C') setShell(S.shellTarget ? 0 : 1);
+  else if (e.key === 't' || e.key === 'T') tour ? stopTour() : startTour();
+  else if (e.key >= '1' && e.key <= '4') { const i = +e.key - 1; stopTour(); jumpTracerToPhi(i); setView(STEPS[S.mode][i].view); }
+  else if (e.key === 'Escape') { stopTour(); setView('overview'); }
+});
+
+// ---- 悬停 / 点击部件 ----
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); let mouseMoved = false, hoverKey = null, downAt = null;
+const tip = $('tip');
+renderer.domElement.addEventListener('pointermove', e => { mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseMoved = true; tip.style.left = (e.clientX + 16) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+renderer.domElement.addEventListener('pointerleave', () => { hoverKey = null; tip.style.opacity = 0; });
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const k = pick(); if (!k) return;
+  const map = { comp: 'compressor', fourway: 'fourway', eev: 'eev', ocoil: 'outCoil', ofan: 'outFan', icoil: 'inCoil', cfan: 'inCoil', louver: 'indoor', liq: 'pipes', gas: 'pipes', hose: 'pipes', acc: 'compressor', valves: 'outdoor', ebox: 'outdoor', outCase: 'outdoor', inCase: 'indoor', filter: 'indoor', drain: 'inCoil', wall: 'pipes' };
+  if (map[k]) { stopTour(); setView(map[k]); }
+});
+function pick() {
+  ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObjects(pickables, false);
+  for (const h of hits) {
+    const o = h.object; if (!o.visible) continue;
+    let vis = true, p = o.parent; while (p) { if (!p.visible) { vis = false; break; } p = p.parent; }
+    if (!vis) continue;
+    const m = o.material;
+    if ((o === out.top || o === out.frontComp) && m.opacity < 0.5) continue;       // 正在移开的面板
+    if (m.clippingPlanes && m.clippingPlanes.some(pl => pl.distanceToPoint(h.point) < 0)) continue;
+    return o.userData.part;
+  }
+  return null;
+}
+const HI = new THREE.Color(0x3fb6ff);
+function updateHover() {
+  const k = pick();
+  if (k !== hoverKey) {
+    if (hoverKey && PARTS[hoverKey]) PARTS[hoverKey].mats.forEach(m => m.emissive.copy(m.userData.baseE));
+    hoverKey = k;
+    if (k && INFO[k]) { const [n, en, d] = INFO[k]; tip.innerHTML = `<b>${n}<em>${en}</em></b>${d}<span class="k">点击聚焦该部件</span>`; tip.style.opacity = 1; renderer.domElement.style.cursor = 'pointer'; }
+    else { tip.style.opacity = 0; renderer.domElement.style.cursor = ''; }
+  }
+}
+
+// ---- 读数刷新 ----
+const RD = { rPH: $('rPH'), rTH: $('rTH'), rPL: $('rPL'), rTL: $('rTL'), rTD: $('rTD'), rHz: $('rHz'), rCap: $('rCap'), rPow: $('rPow'), rIn: $('rIn'), rOut: $('rOut'), rCOP: $('rCOP'), tr: $('tracerInfo') };
+function updateReadings(st) {
+  const n = Math.sin(S.time * 1.7) * 0.5 + Math.sin(S.time * 0.61) * 0.5;
+  RD.rPH.textContent = (CY.PH + n * 0.015).toFixed(2); RD.rTH.textContent = `冷凝 ${CY.TH.toFixed(0)} °C`;
+  RD.rPL.textContent = (CY.PL + n * 0.008).toFixed(2); RD.rTL.textContent = `蒸发 ${CY.TL.toFixed(0)} °C`;
+  RD.rTD.textContent = (CY.Tdis + n * 0.6).toFixed(0); RD.rHz.textContent = `变频 ${(CY.freq + n * 0.4).toFixed(0)} Hz`;
+  RD.rCap.textContent = CY.cap.toFixed(2); RD.rPow.textContent = `耗电 ${(CY.pow + n * 0.01).toFixed(2)} kW`;
+  RD.rIn.textContent = `${CY.inA.toFixed(0)}→${CY.inB.toFixed(0)}`; RD.rOut.textContent = `${CY.outA.toFixed(0)}→${CY.outB.toFixed(0)}`;
+  const heat = S.mode === 'heat', cop = heat ? (CY.h2 - CY.h3) / (CY.h2 - CY.h1) : (CY.h1 - CY.h3) / (CY.h2 - CY.h1);
+  RD.rCOP.textContent = `${cop.toFixed(1)} / ${(CY.cap / CY.pow).toFixed(1)}`;
+  if (st) {
+    const col = '#' + phiColorHex(TR.phi).clone().convertLinearToSRGB().getHexString();
+    RD.tr.innerHTML = `<span style="color:${col}">●</span> <b>${st.ph}</b> · ${st.T.toFixed(0)} °C · ${st.P.toFixed(2)} MPa · h ${st.h.toFixed(0)}` + (st.x !== null ? ` · 干度 ${Math.round(clamp(st.x, 0, 1) * 100)}%` : '');
+  }
+}
+
+// =====================================================================
+//  主循环
+// =====================================================================
+const clock = new THREE.Clock();
+const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3(), tmpC = new THREE.Color();
+let frame = 0, lastUI = 0;
+inn.swing = 1;
+function simulateAir(dt) {
+  for (let i = 0; i < airIn.n; i++) inStep(airIn, i, dt);
+  for (let i = 0; i < airOut.n; i++) outStep(airOut, i, dt);
+}
+function tick() {
+  requestAnimationFrame(tick);
+  const raw = clock.getDelta(), rdt = Math.min(raw, 0.05), dt = S.playing ? rdt * S.speed : 0, cdt = Math.min(raw, 0.25);
+  S.time += dt; frame++;
+
+  // 模式切换过程：先淡出流动 → 四通阀换向 → 再淡入
+  if (pendingMode) { switchT += cdt; if (switchT > 0.55 && S.mode !== pendingMode) applyMode(pendingMode); if (switchT > 0.9) { pendingMode = null; S.flowTarget = 1; } }
+  S.flow += (S.flowTarget * (S.showRef ? 1 : 0) - S.flow) * Math.min(1, cdt * 4);
+  RU.uFlow.value = S.flow;
+  S.flowT += dt * 1.6; RU.uTime.value = S.flowT;
+  const tgt = CYC[S.mode]; for (const k in CY) CY[k] += (tgt[k] - CY[k]) * Math.min(1, rdt * 1.2);
+
+  // 外壳
+  S.shell += (S.shellTarget - S.shell) * Math.min(1, cdt * 2.2); if (Math.abs(S.shellTarget - S.shell) < 0.001) S.shell = S.shellTarget;
+  applyShell(S.shell);
+
+  // 机械运动
+  const heat = S.mode === 'heat';
+  out.fan.rotation.z += dt * 9;
+  out.comp.spin.rotation.y += dt * 14;
+  const th = out.comp.spin.rotation.y, e = 0.06;
+  out.comp.piston.position.set(Math.cos(th) * e, 0, -Math.sin(th) * e);
+  out.comp.vane.position.x = 0.235 + Math.cos(th) * e + 0.14;
+  out.comp.chamber.material.color.copy(phiColorHex(0.5 + 0.5 * Math.sin(th)));
+  const sx = heat ? -0.125 : 0.125; out.slider.position.x += (sx - out.slider.position.x) * Math.min(1, rdt * 3);
+  out.coil.material.emissive.setHex(heat ? 0xff3322 : 0x000000); out.coil.material.emissiveIntensity = heat ? 0.6 : 0;
+  out.needle.position.y = 1.78 + 0.02 * Math.sin(S.time * 0.8);
+  inn.cfan.parent.rotation.x += dt * 11;
+  const la = heat ? 0.85 + 0.12 * Math.sin(S.time * 0.45) : 0.3 + 0.16 * Math.sin(S.time * 0.45);
+  inn.louver.rotation.x += (la - inn.louver.rotation.x) * Math.min(1, rdt * 2);
+  const yaw = Math.sin(S.time * 0.5) * 0.35;
+  inn.vaneX.forEach((x, i) => { tmpQ.setFromAxisAngle(V(0, 1, 0), yaw); tmpM.compose(tmpV.set(x, 0.56, 1.46), tmpQ, tmpS.set(1, 1, 1)); inn.vanes.setMatrixAt(i, tmpM); });
+  inn.vanes.instanceMatrix.needsUpdate = true;
+
+  // 换热器翅片温度色调
+  const hot = new THREE.Color(0xff5a1e).multiplyScalar(0.10 * S.flow), cold = new THREE.Color(0x1e7bff).multiplyScalar(0.12 * S.flow);
+  for (const [key, isHot] of [['ocoil', !heat], ['icoil', heat]]) PARTS[key].mats.forEach(m => { if (m.isMeshStandardMaterial && m.metalness > 0.8) { m.userData.baseE.copy(isHot ? hot : cold); if (hoverKey !== key) m.emissive.copy(m.userData.baseE); } });
+  if (hoverKey && PARTS[hoverKey]) { const k = 0.18 + 0.1 * Math.sin(performance.now() * 0.006); PARTS[hoverKey].mats.forEach(m => m.emissive.copy(m.userData.baseE).add(tmpC.copy(HI).multiplyScalar(k))); }
+
+  // 空气
+  if (dt > 0) simulateAir(dt);
+  finishAir(airIn, dt); finishAir(airOut, dt);
+
+  // 冷凝水
+  const cooling = !heat && S.flow > 0.5;
+  dropS.forEach((d, i) => {
+    d.t -= dt;
+    if (d.t <= 0 && d.v === 0 && cooling) { const front = Math.random() < 0.6; d.x = rand(-3.8, 3.4); d.y = front ? 0.98 : 1.53; d.z = front ? rand(1.8, 2.0) : rand(0.4, 0.55); d.floor = front ? 0.88 : 1.44; d.v = 0.001; }
+    if (d.v > 0) { d.v += 6 * dt; d.y -= d.v * dt; if (d.y < d.floor) { d.v = 0; d.t = rand(0.5, 3); } }
+    tmpM.compose(tmpV.set(d.x, d.y, d.z), tmpQ.identity(), tmpS.setScalar(d.v > 0 ? 1 : 0.0001)); drops.setMatrixAt(i, tmpM);
+  });
+  drops.instanceMatrix.needsUpdate = true;
+  dripS.forEach((d, i) => {
+    d.t -= dt;
+    if (d.t <= 0 && d.v === 0 && cooling) { d.y = 0; d.v = 0.001; }
+    if (d.v > 0) { d.v += 9.8 * dt; d.y += d.v * dt * 0.6; if (d.y > 0.65) { d.v = 0; d.t = rand(0.6, 2.4); } }
+    tmpM.compose(tmpV.copy(inn.hoseEnd).add(V(0, -0.1 - d.y, 0)), tmpQ.identity(), tmpS.setScalar(d.v > 0 ? 1 : 0.0001)); drip.setMatrixAt(i, tmpM);
+  });
+  drip.instanceMatrix.needsUpdate = true;
+
+  // 示踪粒子
+  TR.t += dt;
+  const ev = tracerEval(TR.t); TR.phi = ev.phi; TR.pos.copy(ev.p);
+  tracer.position.copy(ev.p); tracer.visible = S.showTracer && S.flow > 0.2;
+  const tc = phiColorHex(ev.phi); trCore.material.color.copy(tc).multiplyScalar(3.5); trHalo.material.color.copy(tc); trLight.color.copy(tc);
+  if (dt > 0) { TR.hist.unshift(ev.p.clone()); if (TR.hist.length > TRN) TR.hist.pop(); }
+  for (let i = 0; i < TRN; i++) {
+    const p = TR.hist[Math.min(i, TR.hist.length - 1)] || ev.p;
+    if (i < TR.hist.length - 1 && p.distanceTo(TR.hist[i + 1]) > 1.2) TR.hist.length = i + 1;   // 跨越跳变时截断拖尾
+    trPos[i * 3] = p.x; trPos[i * 3 + 1] = p.y; trPos[i * 3 + 2] = p.z; trC[i * 3] = tc.r; trC[i * 3 + 1] = tc.g; trC[i * 3 + 2] = tc.b;
+    trA[i] = (1 - i / TRN) * 0.9 * (i < TR.hist.length ? 1 : 0);
+  }
+  trGeo.attributes.position.needsUpdate = trGeo.attributes.aColor.needsUpdate = trGeo.attributes.aAlpha.needsUpdate = true;
+  trTrail.visible = tracer.visible;
+  setActiveStep(Math.floor(((ev.phi % 4) + 4) % 4));
+
+  // 热量流向
+  qUni.uTime.value = S.time; qUni.uDir.value += ((heat ? -1 : 1) - qUni.uDir.value) * Math.min(1, rdt * 3);
+  qUni.uA.value.lerp(new THREE.Color(heat ? 0xff8a3d : 0x3fb6ff), Math.min(1, rdt * 2));
+  qUni.uB.value.lerp(new THREE.Color(heat ? 0x2f7dff : 0xff4a2a), Math.min(1, rdt * 2));
+
+  // 相机
+  if (cam.t < 1) { cam.t = Math.min(1, cam.t + cdt / cam.dur); const k = ease(cam.t); camera.position.lerpVectors(cam.p0, cam.p1, k); controls.target.lerpVectors(cam.q0, cam.q1, k); }
+  if (S.follow && tracer.visible) {
+    const off = camera.position.clone().sub(controls.target); const d = off.length(); off.multiplyScalar(lerp(d, 6, Math.min(1, rdt * 1.5)) / d);
+    controls.target.lerp(ev.p, Math.min(1, rdt * 3)); camera.position.copy(controls.target).add(off);
+  }
+  for (const k in LBL) { const o = LBL[k]; o.visible = o.userData.on && (!o.userData.maxD || camera.position.distanceTo(o.position) < o.userData.maxD); }
+  if (tour) { tour.t += cdt; if (tour.t > TOUR[tour.i].d) nextTour(); }
+  controls.update();
+
+  if (mouseMoved && frame % 3 === 0) { mouseMoved = false; updateHover(); }
+  const now = performance.now();
+  const st = drawPH(ev.phi);
+  if (now - lastUI > 120) { lastUI = now; updateReadings(st); }
+
+  renderBloom();
+  composer.render();
+  labelRenderer.render(scene, camera);
+  if (frame === 2) { window.__acReady = true; $('loading').classList.add('hide'); setTimeout(() => setShell(1), 1400); }
+}
+
+function onResize() {
+  const w = innerWidth, h = innerHeight;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); composer.setSize(w, h); bloomComposer.setPixelRatio(renderer.getPixelRatio() * 0.5); bloomComposer.setSize(w, h); labelRenderer.setSize(w, h);
+  airUni.uScale.value = h * renderer.getPixelRatio() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+  sizePH();
+}
+addEventListener('resize', onResize);
+
+// 初始化
+for (let i = 0; i < airIn.n; i++) inSpawn(airIn, i, true);
+for (let i = 0; i < airOut.n; i++) { outSpawn(airOut, i); airOut.age[i] = rand(0, 0.6); }
+for (let k = 0; k < 200; k++) simulateAir(1 / 30);
+applyMode('cool'); setActiveStep(0);
+onResize();
+applyShell(0);
+setView('overview', true);
+window.__ac = { S, setView, setMode, setShell, camera, controls };   // 调试接口
+tick();
 </script>
 </body>
 </html>
